@@ -1776,8 +1776,15 @@ export async function fetchOrderHistory(page = 1, pageSize = 10) {
         specialInstructions: item.special_instructions || null,
       })),
       items: order.order_items.reduce((sum, item) => sum + item.quantity, 0),
-      total: order.total_amount,
+      subtotal: Number(order.total_amount) || 0,
+      serviceFee: Number(order.service_fee) || 0,
+      deliveryFee: Number(order.delivery_fee) || 0,
+      total:
+        (Number(order.total_amount) || 0) +
+        (Number(order.service_fee) || 0) +
+        (Number(order.delivery_fee) || 0),
       status: order.status,
+      paymentStatus: order.payment_status || "paid",
       rating: order.rating || 0,
       deliveryLocation: order.delivery_location || "UPSA",
       deliveryAddress: order.delivery_address,
@@ -1803,7 +1810,7 @@ export async function fetchAppSettings() {
     const { data, error } = await supabase
       .from("chawp_app_settings")
       .select(
-        "service_fee, delivery_fee, service_fee_mode, service_fee_percentage",
+        "service_fee, delivery_fee, service_fee_mode, service_fee_percentage, pay_after_delivery_enabled",
       )
       .single();
 
@@ -1815,6 +1822,7 @@ export async function fetchAppSettings() {
       serviceFeeMode:
         data.service_fee_mode === "percentage" ? "percentage" : "flat",
       serviceFeePercentage: parseFloat(data.service_fee_percentage) || 0,
+      payAfterDeliveryEnabled: Boolean(data.pay_after_delivery_enabled),
     };
   } catch (error) {
     console.error("Error fetching app settings:", error);
@@ -1824,6 +1832,7 @@ export async function fetchAppSettings() {
       deliveryFee: 5,
       serviceFeeMode: "flat",
       serviceFeePercentage: 0,
+      payAfterDeliveryEnabled: false,
     };
   }
 }

@@ -1,15 +1,10 @@
-import React, { useState } from "react";
-import {
-  View,
-  Modal,
-  TouchableOpacity,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-} from "react-native";
+import React, { useMemo, useState } from "react";
+import { View, Modal, TouchableOpacity, Text, StyleSheet } from "react-native";
 import { WebView } from "react-native-webview";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, spacing, radii, typography } from "../theme";
+import { spacing, radii, typography } from "../theme";
+import { useTheme } from "../contexts/ThemeContext";
+import LoadingPlaceholder from "./LoadingPlaceholder";
 
 /**
  * In-App Paystack Payment Modal using WebView
@@ -25,6 +20,8 @@ export default function PaystackModal({
   onCancel,
   metadata = {},
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Convert amount to pesewas
@@ -221,7 +218,7 @@ export default function PaystackModal({
 
         {isLoading && (
           <View style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color={colors.primary} />
+            <LoadingPlaceholder width={72} height={12} borderRadius={8} />
             <Text style={styles.loadingText}>Loading payment...</Text>
           </View>
         )}
@@ -230,46 +227,47 @@ export default function PaystackModal({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    paddingTop: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.card,
-  },
-  headerTitle: {
-    ...typography.headline,
-    color: colors.textPrimary,
-  },
-  closeButton: {
-    padding: spacing.sm,
-  },
-  webView: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  loadingOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  loadingText: {
-    color: colors.textPrimary,
-    marginTop: spacing.md,
-    fontSize: 16,
-  },
-});
+const createStyles = (colors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      paddingTop: spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      backgroundColor: colors.card,
+    },
+    headerTitle: {
+      ...typography.headline,
+      color: colors.textPrimary,
+    },
+    closeButton: {
+      padding: spacing.sm,
+    },
+    webView: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    loadingOverlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0,0,0,0.7)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    loadingText: {
+      color: colors.textPrimary,
+      marginTop: spacing.md,
+      fontSize: 16,
+    },
+  });

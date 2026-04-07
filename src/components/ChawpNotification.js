@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { colors, spacing, radii } from "../theme";
+import { spacing, radii } from "../theme";
+import { useTheme } from "../contexts/ThemeContext";
 
 const { width } = Dimensions.get("window");
 
@@ -22,6 +23,9 @@ export default function ChawpNotification({
   duration = 4000,
   actions = [], // Array of { text, onPress, style }
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const slideAnim = useRef(new Animated.Value(-200)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -120,12 +124,14 @@ export default function ChawpNotification({
           transform: [{ translateY: slideAnim }],
           opacity: fadeAnim,
         },
-      ]}>
+      ]}
+    >
       <LinearGradient
         colors={getGradientColors()}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.gradient}>
+        style={styles.gradient}
+      >
         <View style={styles.content}>
           {/* Logo & Icon Section */}
           <View style={styles.iconSection}>
@@ -134,7 +140,8 @@ export default function ChawpNotification({
                 colors={[colors.primary, colors.primaryMuted]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={styles.logoGradient}>
+                style={styles.logoGradient}
+              >
                 <Text style={styles.logoText}>C</Text>
               </LinearGradient>
             </View>
@@ -142,7 +149,8 @@ export default function ChawpNotification({
               style={[
                 styles.statusIcon,
                 { backgroundColor: getIconColor() + "20" },
-              ]}>
+              ]}
+            >
               <Ionicons name={getIconName()} size={24} color={getIconColor()} />
             </View>
           </View>
@@ -174,7 +182,8 @@ export default function ChawpNotification({
                 onPress={() => {
                   if (action.onPress) action.onPress();
                   handleClose();
-                }}>
+                }}
+              >
                 <Text
                   style={[
                     styles.actionButtonText,
@@ -182,7 +191,8 @@ export default function ChawpNotification({
                       styles.actionButtonTextPrimary,
                     action.style === "destructive" &&
                       styles.actionButtonTextDestructive,
-                  ]}>
+                  ]}
+                >
                   {action.text}
                 </Text>
               </TouchableOpacity>
@@ -194,113 +204,114 @@ export default function ChawpNotification({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    position: "absolute",
-    top: 50,
-    left: spacing.lg,
-    right: spacing.lg,
-    zIndex: 9999,
-    elevation: 10,
-  },
-  gradient: {
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  content: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    padding: spacing.md,
-  },
-  iconSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginRight: spacing.sm,
-  },
-  logoContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    overflow: "hidden",
-    marginRight: spacing.xs,
-  },
-  logoGradient: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  logoText: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: colors.card,
-  },
-  statusIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  textSection: {
-    flex: 1,
-    marginRight: spacing.sm,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: colors.textPrimary,
-    marginBottom: spacing.xs / 2,
-  },
-  message: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  closeButton: {
-    padding: spacing.xs / 2,
-  },
-  actionsContainer: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.md,
-    paddingTop: spacing.xs,
-    borderTopWidth: 1,
-    borderTopColor: colors.border + "40",
-  },
-  actionButton: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.sm,
-    backgroundColor: colors.cardElevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  actionButtonPrimary: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  actionButtonDestructive: {
-    backgroundColor: "transparent",
-    borderColor: "#EF4444",
-  },
-  actionButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.textPrimary,
-  },
-  actionButtonTextPrimary: {
-    color: colors.card,
-  },
-  actionButtonTextDestructive: {
-    color: "#EF4444",
-  },
-});
+const createStyles = (colors) =>
+  StyleSheet.create({
+    container: {
+      position: "absolute",
+      top: 50,
+      left: spacing.lg,
+      right: spacing.lg,
+      zIndex: 9999,
+      elevation: 10,
+    },
+    gradient: {
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 8,
+    },
+    content: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      padding: spacing.md,
+    },
+    iconSection: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginRight: spacing.sm,
+    },
+    logoContainer: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      overflow: "hidden",
+      marginRight: spacing.xs,
+    },
+    logoGradient: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    logoText: {
+      fontSize: 20,
+      fontWeight: "bold",
+      color: colors.card,
+    },
+    statusIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    textSection: {
+      flex: 1,
+      marginRight: spacing.sm,
+    },
+    title: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: colors.textPrimary,
+      marginBottom: spacing.xs / 2,
+    },
+    message: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      lineHeight: 20,
+    },
+    closeButton: {
+      padding: spacing.xs / 2,
+    },
+    actionsContainer: {
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      gap: spacing.sm,
+      paddingHorizontal: spacing.md,
+      paddingBottom: spacing.md,
+      paddingTop: spacing.xs,
+      borderTopWidth: 1,
+      borderTopColor: colors.border + "40",
+    },
+    actionButton: {
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      borderRadius: radii.sm,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    actionButtonPrimary: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    actionButtonDestructive: {
+      backgroundColor: "transparent",
+      borderColor: "#EF4444",
+    },
+    actionButtonText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.textPrimary,
+    },
+    actionButtonTextPrimary: {
+      color: colors.card,
+    },
+    actionButtonTextDestructive: {
+      color: "#EF4444",
+    },
+  });

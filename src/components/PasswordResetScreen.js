@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -12,11 +12,15 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
-import { colors, spacing, radii, typography } from "../theme";
+import { spacing, radii, typography } from "../theme";
 import { supabase } from "../config/supabase";
 import { useNotification } from "../contexts/NotificationContext";
+import { useTheme } from "../contexts/ThemeContext";
 
 export default function PasswordResetScreen({ onComplete }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -186,7 +190,7 @@ export default function PasswordResetScreen({ onComplete }) {
 
   return (
     <LinearGradient
-      colors={[colors.background, "#050915"]}
+      colors={[colors.background, colors.surface]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.container}
@@ -300,93 +304,94 @@ export default function PasswordResetScreen({ onComplete }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  safeArea: {
-    flex: 1,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    justifyContent: "center",
-    paddingHorizontal: spacing.lg,
-  },
-  header: {
-    alignItems: "center",
-    marginBottom: spacing.xl,
-  },
-  title: {
-    ...typography.display,
-    color: colors.textPrimary,
-    fontSize: 32,
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  subtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
-  form: {
-    marginBottom: spacing.xl,
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    marginBottom: spacing.md,
-    paddingHorizontal: spacing.md,
-    height: 50,
-  },
-  inputIcon: {
-    marginRight: spacing.sm,
-  },
-  input: {
-    flex: 1,
-    color: colors.textPrimary,
-    fontSize: 16,
-  },
-  eyeIcon: {
-    padding: spacing.xs,
-    marginLeft: spacing.xs,
-  },
-  submitButton: {
-    backgroundColor: colors.primary,
-    borderRadius: radii.pill,
-    height: 50,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: spacing.md,
-  },
-  submitButtonDisabled: {
-    opacity: 0.6,
-  },
-  submitButtonText: {
-    color: colors.card,
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  statusContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: spacing.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-  },
-  statusIcon: {
-    marginRight: spacing.sm,
-  },
-  statusText: {
-    color: colors.primary,
-    fontSize: 14,
-    fontWeight: "500",
-  },
-});
+const createStyles = (colors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    safeArea: {
+      flex: 1,
+    },
+    keyboardView: {
+      flex: 1,
+    },
+    content: {
+      flex: 1,
+      justifyContent: "center",
+      paddingHorizontal: spacing.lg,
+    },
+    header: {
+      alignItems: "center",
+      marginBottom: spacing.xl,
+    },
+    title: {
+      ...typography.display,
+      color: colors.textPrimary,
+      fontSize: 32,
+      marginTop: spacing.md,
+      marginBottom: spacing.sm,
+    },
+    subtitle: {
+      ...typography.body,
+      color: colors.textSecondary,
+      textAlign: "center",
+    },
+    form: {
+      marginBottom: spacing.xl,
+    },
+    inputContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.surface,
+      borderRadius: radii.md,
+      marginBottom: spacing.md,
+      paddingHorizontal: spacing.md,
+      height: 50,
+    },
+    inputIcon: {
+      marginRight: spacing.sm,
+    },
+    input: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: 16,
+    },
+    eyeIcon: {
+      padding: spacing.xs,
+      marginLeft: spacing.xs,
+    },
+    submitButton: {
+      backgroundColor: colors.primary,
+      borderRadius: radii.pill,
+      height: 50,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: spacing.md,
+    },
+    submitButtonDisabled: {
+      opacity: 0.6,
+    },
+    submitButtonText: {
+      color: colors.card,
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    statusContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: spacing.md,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      backgroundColor: colors.surface,
+      borderRadius: radii.md,
+    },
+    statusIcon: {
+      marginRight: spacing.sm,
+    },
+    statusText: {
+      color: colors.primary,
+      fontSize: 14,
+      fontWeight: "500",
+    },
+  });

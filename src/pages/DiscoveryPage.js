@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useMemo, useRef } from "react";
 import {
   Dimensions,
   Image,
@@ -10,15 +10,14 @@ import {
   View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 
-import { colors, spacing, radii, typography, responsive } from "../theme";
+import { spacing, radii, typography } from "../theme";
+import { useTheme } from "../contexts/ThemeContext";
 import EmptyState from "../components/EmptyState";
 import {
   fetchVendors,
-  fetchMeals,
   fetchDiscoveryHighlights,
-  fetchTrendingSearches,
   fetchEditorPicks,
   fetchHeroCards,
 } from "../services/api";
@@ -27,10 +26,11 @@ import { useDataFetching } from "../hooks/useDataFetching";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function DiscoveryPage({ onVendorSelect, onNavigate }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [vendors, setVendors] = React.useState([]);
   const [heroCards, setHeroCards] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
-  const [selectedTrend, setSelectedTrend] = React.useState(null);
   const [randomEditorPicks, setRandomEditorPicks] = React.useState([]);
   const [currentHeroIndex, setCurrentHeroIndex] = React.useState(0);
   const heroScrollRef = useRef(null);
@@ -38,8 +38,6 @@ export default function DiscoveryPage({ onVendorSelect, onNavigate }) {
   // Fetch discovery data
   const { data: discoveryHighlightsData, loading: highlightsLoading } =
     useDataFetching(fetchDiscoveryHighlights);
-  const { data: trendingSearchesData, loading: trendingLoading } =
-    useDataFetching(fetchTrendingSearches);
   const { data: editorPicksData, loading: editorLoading } =
     useDataFetching(fetchEditorPicks);
 
@@ -135,12 +133,6 @@ export default function DiscoveryPage({ onVendorSelect, onNavigate }) {
     }
   };
 
-  const handleTrendingSearch = (trend) => {
-    setSelectedTrend(trend);
-    // Filter vendors based on trend (implement filtering logic)
-    console.log("Searching for:", trend.label);
-  };
-
   return (
     <ScrollView
       style={styles.container}
@@ -189,13 +181,32 @@ export default function DiscoveryPage({ onVendorSelect, onNavigate }) {
                   style={styles.hero}
                 >
                   <View style={styles.heroCopy}>
-                    <Text style={styles.heroTitle}>{card.title}</Text>
-                    <Text style={styles.heroSubtitle}>{card.subtitle}</Text>
+                    <Text
+                      style={[styles.heroTitle, { color: colors.textPrimary }]}
+                    >
+                      {card.title}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.heroSubtitle,
+                        { color: colors.textPrimary },
+                      ]}
+                    >
+                      {card.subtitle}
+                    </Text>
                     <TouchableOpacity
-                      style={styles.heroButton}
+                      style={[
+                        styles.heroButton,
+                        { backgroundColor: colors.card },
+                      ]}
                       onPress={() => handleHeroCardAction(card)}
                     >
-                      <Text style={styles.heroButtonText}>
+                      <Text
+                        style={[
+                          styles.heroButtonText,
+                          { color: colors.primary },
+                        ]}
+                      >
                         {card.button_text || "Learn More"}
                       </Text>
                       <Ionicons
@@ -245,19 +256,23 @@ export default function DiscoveryPage({ onVendorSelect, onNavigate }) {
           style={styles.hero}
         >
           <View style={styles.heroCopy}>
-            <Text style={styles.heroTitle}>Curated nightly journeys</Text>
-            <Text style={styles.heroSubtitle}>
+            <Text style={[styles.heroTitle, { color: colors.textPrimary }]}>
+              Curated nightly journeys
+            </Text>
+            <Text style={[styles.heroSubtitle, { color: colors.textPrimary }]}>
               Hand-picked experiences for nocturnal foodies ready to explore.
             </Text>
             <TouchableOpacity
-              style={styles.heroButton}
+              style={[styles.heroButton, { backgroundColor: colors.card }]}
               onPress={() => {
                 // Scroll to editor's picks section
                 console.log("Exploring curated vendors");
               }}
             >
-              <Text style={styles.heroButtonText}>Start exploring</Text>
-              <Ionicons name="arrow-forward" size={16} color={colors.card} />
+              <Text style={[styles.heroButtonText, { color: colors.primary }]}>
+                Start exploring
+              </Text>
+              <Ionicons name="arrow-forward" size={16} color={colors.primary} />
             </TouchableOpacity>
           </View>
           <Image
@@ -269,30 +284,11 @@ export default function DiscoveryPage({ onVendorSelect, onNavigate }) {
         </LinearGradient>
       )}
 
-      <SectionHeader title="Trending searches" actionLabel="See trends" />
-      <View style={styles.trendingGrid}>
-        {(trendingSearchesData || []).map((item) => (
-          <TouchableOpacity
-            key={item.id}
-            style={styles.trendingCard}
-            onPress={() => handleTrendingSearch(item)}
-          >
-            <MaterialCommunityIcons
-              name={item.icon}
-              size={22}
-              color={colors.accent}
-            />
-            <Text style={styles.trendingLabel}>{item.label}</Text>
-            <Ionicons
-              name="arrow-forward"
-              size={16}
-              color={colors.textSecondary}
-            />
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <SectionHeader title="Nightly highlights" />
+      <SectionHeader
+        title="Nightly highlights"
+        colors={colors}
+        styles={styles}
+      />
       <View style={styles.highlightList}>
         {(discoveryHighlightsData || []).map((collection) => (
           <View key={collection.id} style={styles.highlightCard}>
@@ -308,7 +304,7 @@ export default function DiscoveryPage({ onVendorSelect, onNavigate }) {
         ))}
       </View>
 
-      <SectionHeader title="Editor's picks" />
+      <SectionHeader title="Editor's picks" colors={colors} styles={styles} />
       <View style={styles.editorGrid}>
         {loading ? (
           <View style={styles.loadingContainer}>
@@ -325,7 +321,10 @@ export default function DiscoveryPage({ onVendorSelect, onNavigate }) {
           randomEditorPicks.map((vendor) => (
             <TouchableOpacity
               key={vendor.id}
-              style={styles.editorCard}
+              style={[
+                styles.editorCard,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
               onPress={() => handleVendorPress(vendor)}
               activeOpacity={0.8}
             >
@@ -372,7 +371,7 @@ export default function DiscoveryPage({ onVendorSelect, onNavigate }) {
   );
 }
 
-function SectionHeader({ title, actionLabel, onActionPress }) {
+function SectionHeader({ title, actionLabel, onActionPress, colors, styles }) {
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -396,239 +395,223 @@ function SectionHeader({ title, actionLabel, onActionPress }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    paddingVertical: spacing.xl,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: 50,
-    gap: spacing.xl,
-  },
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
-  subtitle: {
-    color: colors.accent,
-    fontSize: 13,
-    fontWeight: "600",
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-  },
-  title: {
-    ...typography.headline,
-    color: colors.textPrimary,
-    marginTop: spacing.xs,
-  },
-  headerButton: {
-    width: 44,
-    height: 44,
-    borderRadius: radii.md,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  hero: {
-    borderRadius: radii.lg,
-    padding: spacing.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.lg,
-  },
-  heroCopy: {
-    flex: 1,
-    gap: spacing.sm,
-  },
-  heroTitle: {
-    ...typography.title,
-    color: colors.textPrimary,
-    fontSize: 20,
-  },
-  heroSubtitle: {
-    color: colors.textPrimary,
-    opacity: 0.85,
-    lineHeight: 20,
-  },
-  heroButton: {
-    marginTop: spacing.sm,
-    backgroundColor: colors.card,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radii.pill,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  heroButtonText: {
-    color: colors.primary,
-    fontWeight: "700",
-    fontSize: 14,
-  },
-  heroImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 2,
-    borderColor: "rgba(255, 255, 255, 0.28)",
-  },
-  heroCardsContainer: {
-    marginVertical: spacing.md,
-  },
-  heroScrollContainer: {
-    gap: spacing.md,
-  },
-  heroCardItem: {
-    width: SCREEN_WIDTH * 0.85,
-  },
-  heroPagination: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: spacing.md,
-    gap: spacing.sm,
-  },
-  heroDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.textMuted,
-    opacity: 0.5,
-  },
-  heroDotActive: {
-    backgroundColor: colors.primary,
-    opacity: 1,
-    transform: [{ scaleX: 1.5 }],
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  sectionTitle: {
-    ...typography.title,
-    color: colors.textPrimary,
-  },
-  sectionAction: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  sectionActionText: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  trendingGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  trendingCard: {
-    flexBasis: "48%",
-    backgroundColor: colors.card,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  trendingLabel: {
-    color: colors.textPrimary,
-    fontWeight: "600",
-    flex: 1,
-    marginHorizontal: spacing.sm,
-  },
-  highlightList: {
-    gap: spacing.lg,
-  },
-  highlightCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: "hidden",
-  },
-  highlightImage: {
-    width: "100%",
-    height: 160,
-  },
-  highlightBody: {
-    padding: spacing.lg,
-    gap: spacing.xs,
-  },
-  highlightTitle: {
-    ...typography.title,
-    color: colors.textPrimary,
-  },
-  highlightText: {
-    color: colors.textSecondary,
-    lineHeight: 18,
-  },
-  editorGrid: {
-    gap: spacing.lg,
-  },
-  editorCard: {
-    backgroundColor: colors.card,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: "hidden",
-  },
-  editorImage: {
-    width: "100%",
-    height: 150,
-  },
-  editorBody: {
-    padding: spacing.lg,
-    gap: spacing.sm,
-  },
-  editorTitle: {
-    ...typography.title,
-    color: colors.textPrimary,
-  },
-  tagRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.xs,
-  },
-  tagPill: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.pill,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  tagText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  metaText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: spacing.xl,
-  },
-  loadingText: {
-    color: colors.textSecondary,
-    fontSize: 16,
-  },
-});
+const createStyles = (colors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      paddingVertical: spacing.xl,
+      paddingHorizontal: spacing.lg,
+      paddingBottom: 50,
+      gap: spacing.xl,
+    },
+    headerRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+    },
+    subtitle: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      fontWeight: "600",
+      letterSpacing: 1.2,
+      textTransform: "uppercase",
+    },
+    title: {
+      ...typography.headline,
+      color: colors.textPrimary,
+      marginTop: spacing.xs,
+    },
+    headerButton: {
+      width: 44,
+      height: 44,
+      borderRadius: radii.md,
+      backgroundColor: colors.surface,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    hero: {
+      borderRadius: radii.lg,
+      padding: spacing.lg,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.lg,
+    },
+    heroCopy: {
+      flex: 1,
+      gap: spacing.sm,
+    },
+    heroTitle: {
+      ...typography.title,
+      color: colors.textPrimary,
+      fontSize: 20,
+    },
+    heroSubtitle: {
+      color: colors.textPrimary,
+      opacity: 0.85,
+      lineHeight: 20,
+    },
+    heroButton: {
+      marginTop: spacing.sm,
+      backgroundColor: colors.card,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+      borderRadius: radii.pill,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+    },
+    heroButtonText: {
+      color: colors.primary,
+      fontWeight: "700",
+      fontSize: 14,
+    },
+    heroImage: {
+      width: 120,
+      height: 120,
+      borderRadius: 60,
+      borderWidth: 2,
+      borderColor: colors.border + "66",
+    },
+    heroCardsContainer: {
+      marginVertical: spacing.md,
+    },
+    heroScrollContainer: {
+      gap: spacing.md,
+    },
+    heroCardItem: {
+      width: SCREEN_WIDTH * 0.85,
+    },
+    heroPagination: {
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      marginTop: spacing.md,
+      gap: spacing.sm,
+    },
+    heroDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.textMuted,
+      opacity: 0.5,
+    },
+    heroDotActive: {
+      backgroundColor: colors.primary,
+      opacity: 1,
+      transform: [{ scaleX: 1.5 }],
+    },
+    sectionHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    sectionTitle: {
+      ...typography.title,
+      color: colors.textPrimary,
+    },
+    sectionAction: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+    },
+    sectionActionText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    highlightList: {
+      gap: spacing.lg,
+    },
+    highlightCard: {
+      backgroundColor: colors.surface,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: "hidden",
+    },
+    highlightImage: {
+      width: "100%",
+      height: 160,
+    },
+    highlightBody: {
+      padding: spacing.lg,
+      gap: spacing.xs,
+    },
+    highlightTitle: {
+      ...typography.title,
+      color: colors.textPrimary,
+    },
+    highlightText: {
+      color: colors.textSecondary,
+      lineHeight: 18,
+    },
+    editorGrid: {
+      gap: spacing.lg,
+    },
+    editorCard: {
+      backgroundColor: colors.card,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: "hidden",
+    },
+    editorImage: {
+      width: "100%",
+      height: 150,
+    },
+    editorBody: {
+      padding: spacing.lg,
+      gap: spacing.sm,
+    },
+    editorTitle: {
+      ...typography.title,
+      color: colors.textPrimary,
+    },
+    tagRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: spacing.xs,
+    },
+    tagPill: {
+      backgroundColor: colors.surface,
+      borderRadius: radii.pill,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+    },
+    tagText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    metaRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+    },
+    metaText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    dot: {
+      width: 4,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.border,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingVertical: spacing.xl,
+    },
+    loadingText: {
+      color: colors.textSecondary,
+      fontSize: 16,
+    },
+  });

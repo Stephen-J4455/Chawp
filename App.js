@@ -1,7 +1,7 @@
 import { StatusBar as ExpoStatusBar } from "expo-status-bar";
 import React, { useRef } from "react";
 import {
-  ActivityIndicator,
+  Appearance,
   BackHandler,
   Dimensions,
   FlatList,
@@ -21,9 +21,10 @@ import {
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
-import { colors, spacing, radii, typography, responsive } from "./src/theme";
+import { spacing, radii, typography, responsive } from "./src/theme";
 import DiscoveryPage from "./src/pages/DiscoveryPage";
 import OrdersPage from "./src/pages/OrdersPage";
+import OrderHistoryPage from "./src/pages/OrderHistoryPage";
 import ProfilePage from "./src/pages/ProfilePage";
 import FoodPage from "./src/pages/FoodPage";
 import VendorPage from "./src/pages/VendorPage";
@@ -31,9 +32,11 @@ import PrivacyPage from "./src/pages/PrivacyPage";
 import AuthScreen from "./src/components/AuthScreen";
 import PasswordResetScreen from "./src/components/PasswordResetScreen";
 import ChawpLoading from "./src/components/ChawpLoading";
+import LoadingPlaceholder from "./src/components/LoadingPlaceholder";
 import EmptyState from "./src/components/EmptyState";
 import PaystackModal from "./src/components/PaystackModal";
 import { AuthProvider, useAuth } from "./src/contexts/AuthContext";
+import { ThemeProvider, useTheme } from "./src/contexts/ThemeContext";
 import {
   NotificationProvider,
   useNotification,
@@ -57,6 +60,8 @@ import {
   initializePaystackPayment,
   getPaystackPublicKey,
   verifyPaymentAndCreateOrder,
+  verifyPaymentForOrders,
+  createPayAfterDeliveryOrder,
 } from "./src/services/paystack";
 
 // Responsive dimensions helper
@@ -355,7 +360,15 @@ const getCartItemOptions = (cartItem = {}) => {
   };
 };
 
+const useThemedStyles = () => {
+  const { resolvedColorScheme, colors } = useTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
+  return { resolvedColorScheme, colors, styles };
+};
+
 function App() {
+  const { resolvedColorScheme, colors, styles } = useThemedStyles();
+  const statusBarStyle = resolvedColorScheme === "light" ? "dark" : "light";
   const [selectedNav, setSelectedNav] = React.useState("home");
   const [cartItems, setCartItems] = React.useState([]);
   const [cartLoading, setCartLoading] = React.useState(false);
@@ -823,12 +836,6 @@ function App() {
       setCartLoading(false);
     }
   };
-
-  React.useEffect(() => {
-    if (selectedNav !== "home") {
-      setIsCartOpen(false);
-    }
-  }, [selectedNav]);
 
   // Auto-scroll hero cards
   React.useEffect(() => {
@@ -1300,15 +1307,15 @@ function App() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ExpoStatusBar style="light" />
+      <ExpoStatusBar style={statusBarStyle} />
       <LinearGradient
-        colors={[colors.background, "#050915"]}
+        colors={[colors.background, colors.surface]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradient}
       >
         {authLoading ? (
-          <ChawpLoading message="Authenticating..." />
+          <ChawpLoading />
         ) : isResettingPassword ? (
           <PasswordResetScreen
             onComplete={() => {
@@ -1327,7 +1334,7 @@ function App() {
         ) : !user ? (
           <AuthScreen />
         ) : loading ? (
-          <ChawpLoading message="Loading delicious options..." />
+          <ChawpLoading />
         ) : error ? (
           <View style={styles.errorContainer}>
             <Ionicons
@@ -1344,9 +1351,11 @@ function App() {
           <>
             {/* Home page - always mounted, shown/hidden with styles to preserve scroll position */}
             <View
-              style={
-                selectedNav === "home" ? styles.pageVisible : styles.pageHidden
-              }
+              style={[
+                styles.pageLayer,
+                selectedNav === "home" ? styles.pageVisible : styles.pageHidden,
+              ]}
+              pointerEvents={selectedNav === "home" ? "auto" : "none"}
             >
               <ScrollView
                 showsVerticalScrollIndicator={false}
@@ -2007,9 +2016,10 @@ function App() {
                                   }
                                 >
                                   {addingToCart === item.id ? (
-                                    <ActivityIndicator
-                                      size="small"
-                                      color={colors.card}
+                                    <LoadingPlaceholder
+                                      width={18}
+                                      height={18}
+                                      borderRadius={9}
                                     />
                                   ) : (
                                     <Ionicons
@@ -2038,11 +2048,13 @@ function App() {
 
             {/* Other pages - always mounted, shown/hidden with styles to preserve scroll position */}
             <View
-              style={
+              style={[
+                styles.pageLayer,
                 selectedNav === "discover"
                   ? styles.pageVisible
-                  : styles.pageHidden
-              }
+                  : styles.pageHidden,
+              ]}
+              pointerEvents={selectedNav === "discover" ? "auto" : "none"}
             >
               <View style={styles.pageContainer}>
                 <DiscoveryPage
@@ -2066,11 +2078,13 @@ function App() {
             </View>
 
             <View
-              style={
+              style={[
+                styles.pageLayer,
                 selectedNav === "orders"
                   ? styles.pageVisible
-                  : styles.pageHidden
-              }
+                  : styles.pageHidden,
+              ]}
+              pointerEvents={selectedNav === "orders" ? "auto" : "none"}
             >
               <View style={styles.pageContainer}>
                 <OrdersPage />
@@ -2078,21 +2092,39 @@ function App() {
             </View>
 
             <View
-              style={
+              style={[
+                styles.pageLayer,
                 selectedNav === "profile"
                   ? styles.pageVisible
-                  : styles.pageHidden
-              }
+                  : styles.pageHidden,
+              ]}
+              pointerEvents={selectedNav === "profile" ? "auto" : "none"}
             >
               <View style={styles.pageContainer}>
                 <ProfilePage
-                  onNavigateToOrders={() => setSelectedNav("orders")}
+                  onNavigateToOrderHistory={() =>
+                    setSelectedNav("order-history")
+                  }
                   onOpenPrivacy={() => {
                     console.log("onOpenPrivacy called in App.js");
                     setShowPrivacyPage(true);
                     console.log("showPrivacyPage set to true");
                   }}
                 />
+              </View>
+            </View>
+
+            <View
+              style={[
+                styles.pageLayer,
+                selectedNav === "order-history"
+                  ? styles.pageVisible
+                  : styles.pageHidden,
+              ]}
+              pointerEvents={selectedNav === "order-history" ? "auto" : "none"}
+            >
+              <View style={styles.pageContainer}>
+                <OrderHistoryPage onBack={() => setSelectedNav("profile")} />
               </View>
             </View>
           </>
@@ -2107,6 +2139,7 @@ function App() {
             serviceFeePercentage={appSettings.serviceFeePercentage}
             deliveryFee={deliveryFee}
             cartTotal={cartTotal}
+            payAfterDeliveryEnabled={appSettings.payAfterDeliveryEnabled}
             onUpdateQuantity={updateCartQuantity}
             onClose={() => setIsCartOpen(false)}
             onClearCart={clearCart}
@@ -2131,7 +2164,11 @@ function App() {
                   <TouchableOpacity
                     key={item.id}
                     style={styles.bottomNavItem}
-                    onPress={() => setSelectedNav(item.id)}
+                    onPress={() => {
+                      if (selectedNav !== item.id) {
+                        setSelectedNav(item.id);
+                      }
+                    }}
                     accessibilityRole="button"
                     accessibilityState={{ selected: isActive }}
                   >
@@ -2325,7 +2362,11 @@ function App() {
                     disabled={addingToCart === pendingCartMeal.id}
                   >
                     {addingToCart === pendingCartMeal.id ? (
-                      <ActivityIndicator size="small" color={colors.card} />
+                      <LoadingPlaceholder
+                        width={18}
+                        height={18}
+                        borderRadius={9}
+                      />
                     ) : (
                       <Text style={styles.optionPickerConfirmText}>
                         Add to Cart
@@ -2394,6 +2435,7 @@ const SectionHeader = React.memo(function SectionHeader({
   actionLabel,
   onActionPress,
 }) {
+  const { colors, styles } = useThemedStyles();
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -2419,22 +2461,107 @@ function CartPage({
   serviceFeePercentage,
   deliveryFee,
   cartTotal,
+  payAfterDeliveryEnabled,
   onUpdateQuantity,
   onClose,
   onClearCart,
   selectedLocation,
 }) {
+  const { colors, styles } = useThemedStyles();
   const { user, profile } = useAuth();
   const notification = useNotification();
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [isScheduled, setIsScheduled] = React.useState(false);
   const [scheduledDate, setScheduledDate] = React.useState(new Date());
   const [showDatePicker, setShowDatePicker] = React.useState(false);
+  const [showPaymentChoiceModal, setShowPaymentChoiceModal] =
+    React.useState(false);
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [showPaymentModal, setShowPaymentModal] = React.useState(false);
   const [paymentReference, setPaymentReference] = React.useState("");
   const [paymentAccessCode, setPaymentAccessCode] = React.useState("");
+  const [paymentOrderIds, setPaymentOrderIds] = React.useState([]);
   const [orderData, setOrderData] = React.useState(null);
+
+  const buildOrderDetails = React.useCallback(
+    () => ({
+      deliveryAddress: profile.address || "UPSA Campus, Accra",
+      deliveryLocation: selectedLocation || "UPSA",
+      deliveryInstructions: "",
+      scheduledFor: isScheduled ? scheduledDate.toISOString() : null,
+      cartTotal: cartTotal,
+      appSettings: {
+        serviceFee,
+        serviceFeeMode,
+        serviceFeePercentage,
+        deliveryFee,
+      },
+    }),
+    [
+      profile,
+      selectedLocation,
+      isScheduled,
+      scheduledDate,
+      cartTotal,
+      serviceFee,
+      serviceFeeMode,
+      serviceFeePercentage,
+      deliveryFee,
+    ],
+  );
+
+  const startInstantPaymentFlow = React.useCallback(
+    async (orderDetails) => {
+      const reference = generatePaymentReference();
+      setPaymentReference(reference);
+
+      const initResult = await initializePaystackPayment({
+        reference,
+        orderData: orderDetails,
+        amount: cartTotal,
+      });
+
+      if (!initResult?.accessCode) {
+        throw new Error("Payment initialization did not return an access code");
+      }
+
+      setPaymentReference(initResult.reference || reference);
+      setPaymentAccessCode(initResult.accessCode);
+      setPaymentOrderIds(
+        Array.isArray(initResult.orderIds) ? initResult.orderIds : [],
+      );
+      setShowPaymentModal(true);
+    },
+    [cartTotal],
+  );
+
+  const placePayAfterDeliveryOrderFlow = React.useCallback(
+    async (orderDetails) => {
+      const createResult = await createPayAfterDeliveryOrder({
+        orderData: orderDetails,
+      });
+
+      if (!createResult?.success) {
+        throw new Error(createResult?.error || "Failed to place order");
+      }
+
+      notification.success(
+        "Order Placed!",
+        "Your order has been placed. You can pay after delivery.",
+        [
+          {
+            text: "OK",
+            style: "primary",
+            onPress: () => {
+              onClearCart();
+              onClose();
+            },
+          },
+        ],
+      );
+    },
+    [notification, onClearCart, onClose],
+  );
 
   const handleCheckout = async () => {
     setIsProcessing(true);
@@ -2455,47 +2582,54 @@ function CartPage({
         return;
       }
 
-      // Generate unique payment reference
-      const reference = generatePaymentReference();
-      setPaymentReference(reference);
-
-      // Prepare order data
-      const orderDetails = {
-        deliveryAddress: profile.address || "UPSA Campus, Accra",
-        deliveryLocation: selectedLocation || "UPSA",
-        deliveryInstructions: "",
-        scheduledFor: isScheduled ? scheduledDate.toISOString() : null,
-        cartTotal: cartTotal, // Include calculated total for server verification
-        appSettings: {
-          serviceFee,
-          serviceFeeMode,
-          serviceFeePercentage,
-          deliveryFee,
-        }, // Include fees used for verification
-      };
+      const orderDetails = buildOrderDetails();
       setOrderData(orderDetails);
 
-      // Initialize payment on the backend so split/subaccount routing is enforced.
-      const initResult = await initializePaystackPayment({
-        reference,
-        orderData: orderDetails,
-        amount: cartTotal,
-      });
-
-      if (!initResult?.accessCode) {
-        throw new Error("Payment initialization did not return an access code");
+      if (payAfterDeliveryEnabled) {
+        setShowPaymentChoiceModal(true);
+        return;
       }
 
-      setPaymentReference(initResult.reference || reference);
-      setPaymentAccessCode(initResult.accessCode);
-
-      // Show in-app payment modal
-      setShowPaymentModal(true);
+      await startInstantPaymentFlow(orderDetails);
     } catch (error) {
       console.error("Checkout error:", error);
       notification.error(
         "Checkout Failed",
         error.message || "An error occurred during checkout. Please try again.",
+      );
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleChoosePayInstantly = async () => {
+    const orderDetails = orderData || buildOrderDetails();
+    setShowPaymentChoiceModal(false);
+    setIsProcessing(true);
+    try {
+      await startInstantPaymentFlow(orderDetails);
+    } catch (error) {
+      console.error("Instant pay selection error:", error);
+      notification.error(
+        "Checkout Failed",
+        error.message || "Could not initialize payment. Please try again.",
+      );
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleChoosePayAfterDelivery = async () => {
+    const orderDetails = orderData || buildOrderDetails();
+    setShowPaymentChoiceModal(false);
+    setIsProcessing(true);
+    try {
+      await placePayAfterDeliveryOrderFlow(orderDetails);
+    } catch (error) {
+      console.error("Pay-after-delivery selection error:", error);
+      notification.error(
+        "Checkout Failed",
+        error.message || "Could not place order. Please try again.",
       );
     } finally {
       setIsProcessing(false);
@@ -2515,11 +2649,14 @@ function CartPage({
       );
       console.log("Order data:", orderData);
 
-      // Verify payment and create order
-      const result = await verifyPaymentAndCreateOrder(
-        response.transactionRef?.reference || paymentReference,
-        orderData,
-      );
+      const resolvedReference =
+        response.transactionRef?.reference || paymentReference;
+
+      // Verify through orderIds flow when fallback init created unpaid orders.
+      const result =
+        Array.isArray(paymentOrderIds) && paymentOrderIds.length > 0
+          ? await verifyPaymentForOrders(resolvedReference, paymentOrderIds)
+          : await verifyPaymentAndCreateOrder(resolvedReference, orderData);
 
       console.log("Verification result:", result);
 
@@ -2534,6 +2671,7 @@ function CartPage({
               onPress: () => {
                 onClearCart();
                 onClose();
+                setPaymentOrderIds([]);
               },
             },
           ],
@@ -2557,6 +2695,7 @@ function CartPage({
   const handlePaymentCancel = () => {
     setShowPaymentModal(false);
     setPaymentAccessCode("");
+    setPaymentOrderIds([]);
     notification.warning("Payment Cancelled", "Your payment was not completed");
   };
 
@@ -2776,10 +2915,12 @@ function CartPage({
                 disabled={isProcessing}
               >
                 {isProcessing ? (
-                  <ActivityIndicator size="small" color={colors.card} />
+                  <LoadingPlaceholder width={18} height={18} borderRadius={9} />
                 ) : (
                   <Text style={styles.checkoutButtonText}>
-                    Proceed to Checkout
+                    {payAfterDeliveryEnabled
+                      ? "Place Order (Pay After Delivery)"
+                      : "Proceed to Checkout"}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -2852,6 +2993,61 @@ function CartPage({
             onCancel={handlePaymentCancel}
           />
         )}
+
+        <Modal
+          visible={showPaymentChoiceModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowPaymentChoiceModal(false)}
+        >
+          <View style={styles.paymentChoiceOverlay}>
+            <View style={styles.paymentChoiceCard}>
+              <Text style={styles.paymentChoiceTitle}>
+                Choose Payment Option
+              </Text>
+              <Text style={styles.paymentChoiceDescription}>
+                Pay now with Paystack, or place your order and pay after
+                delivery.
+              </Text>
+
+              <View style={styles.paymentChoiceActions}>
+                <TouchableOpacity
+                  style={[
+                    styles.paymentChoiceButton,
+                    styles.paymentChoiceButtonPrimary,
+                  ]}
+                  onPress={handleChoosePayInstantly}
+                  disabled={isProcessing}
+                >
+                  <Text style={styles.paymentChoiceButtonPrimaryText}>
+                    Pay Instantly
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.paymentChoiceButton,
+                    styles.paymentChoiceButtonSecondary,
+                  ]}
+                  onPress={handleChoosePayAfterDelivery}
+                  disabled={isProcessing}
+                >
+                  <Text style={styles.paymentChoiceButtonSecondaryText}>
+                    Pay After Delivery
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.paymentChoiceCancelButton}
+                  onPress={() => setShowPaymentChoiceModal(false)}
+                  disabled={isProcessing}
+                >
+                  <Text style={styles.paymentChoiceCancelText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     </View>
   );
@@ -2904,6 +3100,7 @@ function FilterModal({
   onSelectCategory,
   onClose,
 }) {
+  const { colors, styles } = useThemedStyles();
   return (
     <View style={styles.modalOverlay}>
       <View style={styles.modalContent}>
@@ -2995,6 +3192,7 @@ function FilterModal({
 }
 
 function LocationPicker({ selectedLocation, onSelectLocation, onClose }) {
+  const { colors, styles } = useThemedStyles();
   const mainLocation = { id: "upsa", name: "UPSA", distance: "Current" };
   const subLocations = [
     { id: "hostel-a", name: "Hostel A", distance: "2 km" },
@@ -3113,1151 +3311,1223 @@ function LocationPicker({ selectedLocation, onSelectLocation, onClose }) {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  gradient: {
-    flex: 1,
-  },
-  scrollContainer: {
-    paddingTop: spacing.lg,
-    paddingBottom: 100,
-  },
-  header: {
-    paddingHorizontal: spacing.lg,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  headerInset: {
-    paddingTop: headerPaddingTop,
-  },
-  locationLabel: {
-    color: colors.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 1.4,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  locationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: spacing.xs,
-  },
-  locationChevron: {
-    marginLeft: spacing.xs,
-  },
-  locationText: {
-    color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: "600",
-    marginLeft: spacing.xs,
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: radii.lg,
-    borderWidth: 2,
-    borderColor: colors.highlight,
-  },
-  heroCard: {
-    marginTop: spacing.lg,
-    paddingHorizontal: spacing.lg,
-  },
-  heroScrollContainer: {
-    gap: spacing.md,
-  },
-  heroItem: {
-    width: SCREEN_WIDTH * 0.86,
-  },
-  heroGradient: {
-    borderRadius: radii.lg,
-    padding: spacing.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    overflow: "hidden",
-  },
-  heroCopy: {
-    flex: 1,
-  },
-  heroTitle: {
-    ...typography.display,
-    color: colors.textPrimary,
-  },
-  heroSubtitle: {
-    marginTop: spacing.sm,
-    color: colors.textPrimary,
-    opacity: 0.8,
-    lineHeight: 20,
-  },
-  heroButton: {
-    marginTop: spacing.md,
-    backgroundColor: colors.card,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radii.pill,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  heroButtonText: {
-    color: colors.primary,
-    fontWeight: "700",
-    fontSize: 14,
-    marginRight: spacing.xs,
-  },
-  heroImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    marginLeft: spacing.lg,
-    borderWidth: 3,
-    borderColor: "rgba(255, 255, 255, 0.3)",
-    resizeMode: "cover",
-  },
-  heroPagination: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: spacing.md,
-    gap: spacing.sm,
-  },
-  heroDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.textMuted,
-    opacity: 0.5,
-  },
-  heroDotActive: {
-    backgroundColor: colors.primary,
-    opacity: 1,
-    transform: [{ scaleX: 1.5 }],
-  },
-  searchCard: {
-    marginTop: spacing.lg,
-    marginHorizontal: responsive.isSmallDevice ? spacing.md : spacing.lg,
-    borderRadius: radii.md,
-    backgroundColor: colors.surface,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: responsive.isSmallDevice ? spacing.md : spacing.lg,
-    height: 56,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    color: colors.textPrimary,
-    fontSize: responsive.scale(15),
-    fontWeight: "500",
-  },
-  clearButton: {
-    padding: spacing.xs,
-  },
-  filterButton: {
-    width: 42,
-    height: 42,
-    borderRadius: radii.md,
-    backgroundColor: colors.accent,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  searchResultsHeader: {
-    marginTop: spacing.lg,
-    marginHorizontal: spacing.lg,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  searchResultsText: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  searchResultsClear: {
-    color: colors.accent,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  sectionHeader: {
-    marginTop: spacing.xl,
-    marginHorizontal: responsive.isSmallDevice ? spacing.md : spacing.lg,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  sectionTitle: {
-    ...typography.headline,
-    color: colors.textPrimary,
-  },
-  sectionAction: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  sectionActionText: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: "600",
-    marginRight: spacing.xs,
-  },
-  categoryScroll: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    gap: spacing.sm,
-  },
-  categoryPill: {
-    marginRight: spacing.sm,
-    backgroundColor: colors.card,
-    borderRadius: radii.pill,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  categoryPillActive: {
-    backgroundColor: colors.primaryMuted,
-    borderColor: colors.accent,
-    borderWidth: 2,
-  },
-  categoryFilterHeader: {
-    marginTop: spacing.lg,
-    marginHorizontal: spacing.lg,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.primaryMuted,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    borderColor: colors.accent,
-  },
-  categoryFilterText: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  categoryIconWrapper: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: spacing.sm,
-  },
-  categoryLabel: {
-    color: colors.textPrimary,
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  featuredScroll: {
-    paddingHorizontal: responsive.isSmallDevice ? spacing.md : spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
-    gap: responsive.isSmallDevice ? spacing.md : spacing.lg,
-  },
-  restaurantCard: {
-    width: getCardWidth(),
-    backgroundColor: colors.card,
-    borderRadius: radii.lg,
-    marginRight: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: "hidden",
-  },
-  restaurantImage: {
-    width: "100%",
-    height: isSmallDevice ? 120 : isMediumDevice ? 140 : 150,
-    resizeMode: "cover",
-  },
-  restaurantBody: {
-    padding: spacing.lg,
-    gap: spacing.sm,
-  },
-  restaurantTitleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  restaurantName: {
-    ...typography.title,
-    color: colors.textPrimary,
-    flex: 1,
-    marginRight: spacing.sm,
-  },
-  ratingBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    backgroundColor: colors.highlight,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radii.sm,
-  },
-  ratingText: {
-    color: colors.textPrimary,
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  restaurantMeta: {
-    color: colors.textSecondary,
-    fontSize: 13,
-  },
-  tagRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.xs,
-  },
-  tagPill: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.pill,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  tagText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  promoBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    backgroundColor: "rgba(46, 107, 255, 0.12)",
-    borderRadius: radii.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  promoText: {
-    color: colors.textPrimary,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  quickGrid: {
-    flexDirection: "row",
-    paddingHorizontal: responsive.isSmallDevice ? spacing.md : spacing.lg,
-    columnGap: responsive.isSmallDevice ? spacing.md : spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xl,
-  },
-  quickColumn: {
-    flex: 1,
-    rowGap: responsive.isSmallDevice ? spacing.md : spacing.lg,
-  },
-  quickCard: {
-    flex: 1,
-    backgroundColor: colors.card,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: "hidden",
-  },
-  quickImageContainer: {
-    position: "relative",
-    width: "100%",
-    height: 110,
-    backgroundColor: colors.surface,
-  },
-  quickImage: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "cover",
-  },
-  quickClosedOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  quickClosedBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs / 2,
-    backgroundColor: colors.error,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: radii.md,
-  },
-  quickClosedText: {
-    color: colors.card,
-    fontSize: 13,
-    fontWeight: "700",
-    textTransform: "uppercase",
-  },
-  quickBody: {
-    padding: spacing.md,
-    gap: spacing.xs,
-  },
-  quickTitle: {
-    color: colors.textPrimary,
-    fontWeight: "600",
-    fontSize: responsive.scale(16),
-  },
-  quickVendorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs / 2,
-    marginTop: spacing.xs / 2,
-  },
-  quickVendorText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: "500",
-  },
-  quickMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs / 2,
-    marginTop: spacing.xs / 2,
-  },
-  quickMetaItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-  },
-  quickMetaDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: colors.textMuted,
-    marginHorizontal: spacing.xs / 2,
-  },
-  quickMeta: {
-    color: colors.textSecondary,
-    fontSize: 13,
-  },
-  quickMetaMuted: {
-    color: colors.textMuted,
-    fontSize: 12,
-  },
-  bottomNav: {
-    position: "absolute",
-    left: spacing.lg,
-    right: spacing.lg,
-    bottom: spacing.lg,
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: spacing.sm,
-    shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 12,
-    zIndex: 1000,
-  },
-  bottomNavItem: {
-    flex: 1,
-    alignItems: "center",
-  },
-  pageContainer: {
-    flex: 1,
-    width: "100%",
-    paddingTop: headerPaddingTop,
-    paddingBottom: spacing.xl * 2,
-  },
-  pageVisible: {
-    flex: 1,
-    width: "100%",
-  },
-  pageHidden: {
-    display: "none",
-  },
-  navChip: {
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.xs / 2,
-    borderRadius: radii.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.xs,
-  },
-  navChipActive: {
-    backgroundColor: "transparent",
-  },
-  navLabel: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontWeight: "500",
-  },
-  navLabelActive: {
-    color: colors.primary,
-    fontWeight: "600",
-  },
-  // Cart Header Styles
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  cartButton: {
-    width: 48,
-    height: 48,
-    borderRadius: radii.lg,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
-  },
-  cartBadge: {
-    position: "absolute",
-    top: -8,
-    right: -8,
-    backgroundColor: colors.accent,
-    borderRadius: radii.pill,
-    width: 24,
-    height: 24,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cartBadgeText: {
-    color: colors.background,
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  // Cart Modal Styles
-  cartModal: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 2000,
-  },
-  cartOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-  },
-  cartContent: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radii.lg,
-    borderTopRightRadius: radii.lg,
-    maxHeight: "90%",
-    minHeight: "50%",
-    flexDirection: "column",
-  },
-  cartContentExpanded: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    maxHeight: "100%",
-    minHeight: "100%",
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
-  },
-  cartHandle: {
-    alignItems: "center",
-    paddingVertical: spacing.sm,
-  },
-  handleBar: {
-    width: 40,
-    height: 4,
-    backgroundColor: colors.border,
-    borderRadius: 2,
-  },
-  cartHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  cartHeaderActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  expandButton: {
-    width: 40,
-    height: 40,
-    borderRadius: radii.md,
-    backgroundColor: colors.card,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cartTitle: {
-    ...typography.headline,
-    color: colors.textPrimary,
-  },
-  emptyCart: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: spacing.xl * 2,
-    gap: spacing.md,
-  },
-  emptyCartText: {
-    ...typography.title,
-    color: colors.textPrimary,
-  },
-  emptyCartSubtext: {
-    color: colors.textSecondary,
-    textAlign: "center",
-    paddingHorizontal: spacing.lg,
-  },
-  cartItemsList: {
-    flex: 1,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  cartItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  cartItemImage: {
-    width: 50,
-    height: 50,
-    borderRadius: radii.md,
-    marginRight: spacing.md,
-  },
-  cartItemInfo: {
-    flex: 1,
-  },
-  cartItemTitle: {
-    ...typography.body,
-    color: colors.textPrimary,
-  },
-  cartItemPrice: {
-    color: colors.accent,
-    fontWeight: "600",
-    marginTop: spacing.xs,
-  },
-  cartItemOption: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  quantityControl: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.card,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  quantityButton: {
-    width: 28,
-    height: 28,
-    borderRadius: radii.sm,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  quantityText: {
-    color: colors.textPrimary,
-    fontWeight: "600",
-    minWidth: 24,
-    textAlign: "center",
-  },
-  cartSummary: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  deliveryLocationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.sm,
-    marginBottom: spacing.md,
-    gap: spacing.xs,
-  },
-  deliveryLocationLabel: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    marginLeft: spacing.xs,
-  },
-  deliveryLocationValue: {
-    color: colors.accent,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: spacing.sm,
-  },
-  summaryLabel: {
-    color: colors.textSecondary,
-    fontSize: 14,
-  },
-  summaryValue: {
-    color: colors.textPrimary,
-    fontWeight: "600",
-  },
-  totalRow: {
-    paddingTopMargin: spacing.md,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    marginBottomMargin: spacing.lg,
-    marginBottom: spacing.lg,
-  },
-  totalLabel: {
-    ...typography.title,
-    color: colors.textPrimary,
-  },
-  totalValue: {
-    ...typography.title,
-    color: colors.accent,
-  },
-  checkoutButton: {
-    backgroundColor: colors.primary,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.sm,
-  },
-  checkoutButtonDisabled: {
-    backgroundColor: colors.primaryMuted,
-    opacity: 0.6,
-  },
-  checkoutButtonText: {
-    color: colors.card,
-    fontWeight: "700",
-    fontSize: 16,
-  },
-  clearCartButton: {
-    backgroundColor: colors.card,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  clearCartButtonText: {
-    color: colors.textPrimary,
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  // Schedule Delivery Styles
-  scheduleSection: {
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
-    gap: spacing.sm,
-  },
-  scheduleToggle: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: spacing.sm,
-  },
-  scheduleToggleLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  scheduleToggleText: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  datePickerButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  datePickerText: {
-    flex: 1,
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  datePickerModal: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
-  datePickerContent: {
-    backgroundColor: colors.card,
-    borderTopLeftRadius: radii.xl,
-    borderTopRightRadius: radii.xl,
-    maxHeight: "70%",
-  },
-  datePickerHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  datePickerTitle: {
-    ...typography.title,
-    color: colors.textPrimary,
-  },
-  timeSlotsList: {
-    maxHeight: 400,
-  },
-  timeSlot: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  timeSlotText: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: "500",
-  },
-  // Quick Bites Styles
-  quickGrid: {
-    flexDirection: "row",
-    gap: spacing.md,
-  },
-  quickColumn: {
-    flex: 1,
-    gap: spacing.md,
-  },
-  quickCard: {
-    backgroundColor: colors.card,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: "hidden",
-  },
-  quickImageContainer: {
-    position: "relative",
-    width: "100%",
-    height: 120,
-  },
-  quickImage: {
-    width: "100%",
-    height: "100%",
-  },
-  quickClosedOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  quickClosedBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs / 2,
-    backgroundColor: colors.error,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: radii.md,
-  },
-  quickClosedText: {
-    color: colors.card,
-    fontSize: 13,
-    fontWeight: "700",
-    textTransform: "uppercase",
-  },
-  quickBody: {
-    padding: spacing.md,
-    gap: spacing.xs,
-  },
-  quickTitle: {
-    ...typography.body,
-    color: colors.textPrimary,
-    fontWeight: "600",
-  },
-  quickMeta: {
-    color: colors.textSecondary,
-    fontSize: 13,
-  },
-  quickMetaMuted: {
-    color: colors.textMuted,
-    fontSize: 12,
-  },
-  quickFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: spacing.sm,
-  },
-  quickPrice: {
-    ...typography.title,
-    color: colors.textPrimary,
-    fontSize: 16,
-  },
-  quickAddButton: {
-    width: 32,
-    height: 32,
-    borderRadius: radii.sm,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  // Modal Styles
-  modalOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    justifyContent: "flex-end",
-    zIndex: 9000,
-  },
-  modalContent: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: radii.xl,
-    borderTopRightRadius: radii.xl,
-    maxHeight: "80%",
-    paddingBottom: spacing.xl,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  modalTitle: {
-    ...typography.headline,
-    color: colors.textPrimary,
-    fontSize: 20,
-  },
-  modalBody: {
-    maxHeight: 400,
-  },
-  modalButton: {
-    backgroundColor: colors.primary,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
-    alignItems: "center",
-    justifyContent: "center",
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.lg,
-  },
-  modalButtonText: {
-    color: colors.card,
-    fontWeight: "700",
-    fontSize: 16,
-  },
-  optionPickerMealName: {
-    color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: "700",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-  },
-  optionPickerOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    justifyContent: "flex-end",
-  },
-  optionPickerSheet: {
-    backgroundColor: colors.card,
-    borderTopLeftRadius: radii.lg,
-    borderTopRightRadius: radii.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xl,
-    maxHeight: "82%",
-  },
-  optionPickerHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.sm,
-  },
-  optionPickerTitle: {
-    ...typography.title,
-    color: colors.textPrimary,
-  },
-  optionPickerBody: {
-    maxHeight: 360,
-  },
-  optionPickerSectionTitle: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: "700",
-    paddingHorizontal: spacing.lg,
-    marginTop: spacing.lg,
-    marginBottom: spacing.sm,
-  },
-  optionPickerChipWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-  },
-  optionPickerChip: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    borderRadius: radii.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  optionPickerChipActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary + "22",
-  },
-  optionPickerChipText: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  optionPickerChipTextActive: {
-    color: colors.primary,
-  },
-  optionPickerHintText: {
-    color: colors.textMuted,
-    fontSize: 13,
-    paddingHorizontal: spacing.lg,
-  },
-  optionPickerActions: {
-    flexDirection: "row",
-    gap: spacing.md,
-    marginTop: spacing.lg,
-    paddingHorizontal: spacing.lg,
-  },
-  optionPickerButton: {
-    flex: 1,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  optionPickerCancelButton: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  optionPickerCancelText: {
-    color: colors.textPrimary,
-    fontWeight: "600",
-    fontSize: 15,
-  },
-  optionPickerConfirmButton: {
-    backgroundColor: colors.primary,
-  },
-  optionPickerConfirmText: {
-    color: colors.card,
-    fontWeight: "700",
-    fontSize: 15,
-  },
-  filterOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    gap: spacing.md,
-  },
-  filterOptionActive: {
-    backgroundColor: colors.surface,
-  },
-  filterOptionText: {
-    flex: 1,
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  filterOptionTextActive: {
-    color: colors.accent,
-    fontWeight: "700",
-  },
-  filterIconWrapper: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  locationInfo: {
-    flex: 1,
-  },
-  locationDistance: {
-    color: colors.textMuted,
-    fontSize: 12,
-    marginTop: spacing.xs,
-  },
-  subLocationsSection: {
-    marginTop: spacing.lg,
-    paddingTop: spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  subLocationsTitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: spacing.md,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  subLocationOption: {
-    marginLeft: spacing.lg,
-    paddingLeft: spacing.lg,
-    borderLeftWidth: 2,
-    borderLeftColor: colors.border,
-  },
-  subLocationText: {
-    fontSize: 14,
-  },
-});
+const createStyles = (colors) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    gradient: {
+      flex: 1,
+    },
+    scrollContainer: {
+      paddingTop: spacing.lg,
+      paddingBottom: 100,
+    },
+    header: {
+      paddingHorizontal: spacing.lg,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    headerInset: {
+      paddingTop: headerPaddingTop,
+    },
+    locationLabel: {
+      color: colors.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: 1.4,
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    locationRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: spacing.xs,
+    },
+    locationChevron: {
+      marginLeft: spacing.xs,
+    },
+    locationText: {
+      color: colors.textPrimary,
+      fontSize: 18,
+      fontWeight: "600",
+      marginLeft: spacing.xs,
+    },
+    avatar: {
+      width: 48,
+      height: 48,
+      borderRadius: radii.lg,
+      borderWidth: 2,
+      borderColor: colors.highlight,
+    },
+    heroCard: {
+      marginTop: spacing.lg,
+      paddingHorizontal: spacing.lg,
+    },
+    heroScrollContainer: {
+      gap: spacing.md,
+    },
+    heroItem: {
+      width: SCREEN_WIDTH * 0.86,
+    },
+    heroGradient: {
+      borderRadius: radii.lg,
+      padding: spacing.lg,
+      flexDirection: "row",
+      alignItems: "center",
+      overflow: "hidden",
+    },
+    heroCopy: {
+      flex: 1,
+    },
+    heroTitle: {
+      ...typography.display,
+      color: colors.textPrimary,
+    },
+    heroSubtitle: {
+      marginTop: spacing.sm,
+      color: colors.textPrimary,
+      opacity: 0.8,
+      lineHeight: 20,
+    },
+    heroButton: {
+      marginTop: spacing.md,
+      backgroundColor: colors.card,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.lg,
+      borderRadius: radii.pill,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+    },
+    heroButtonText: {
+      color: colors.primary,
+      fontWeight: "700",
+      fontSize: 14,
+      marginRight: spacing.xs,
+    },
+    heroImage: {
+      width: 120,
+      height: 120,
+      borderRadius: 60,
+      marginLeft: spacing.lg,
+      borderWidth: 3,
+      borderColor: "rgba(255, 255, 255, 0.3)",
+      resizeMode: "cover",
+    },
+    heroPagination: {
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      marginTop: spacing.md,
+      gap: spacing.sm,
+    },
+    heroDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.textMuted,
+      opacity: 0.5,
+    },
+    heroDotActive: {
+      backgroundColor: colors.primary,
+      opacity: 1,
+      transform: [{ scaleX: 1.5 }],
+    },
+    searchCard: {
+      marginTop: spacing.lg,
+      marginHorizontal: responsive.isSmallDevice ? spacing.md : spacing.lg,
+      borderRadius: radii.md,
+      backgroundColor: colors.surface,
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: responsive.isSmallDevice ? spacing.md : spacing.lg,
+      height: 56,
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: spacing.sm,
+    },
+    searchInput: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: responsive.scale(15),
+      fontWeight: "500",
+    },
+    clearButton: {
+      padding: spacing.xs,
+    },
+    filterButton: {
+      width: 42,
+      height: 42,
+      borderRadius: radii.md,
+      backgroundColor: colors.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    searchResultsHeader: {
+      marginTop: spacing.lg,
+      marginHorizontal: spacing.lg,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      backgroundColor: colors.surface,
+      borderRadius: radii.sm,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    searchResultsText: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    searchResultsClear: {
+      color: colors.accent,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    sectionHeader: {
+      marginTop: spacing.xl,
+      marginHorizontal: responsive.isSmallDevice ? spacing.md : spacing.lg,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    sectionTitle: {
+      ...typography.headline,
+      color: colors.textPrimary,
+    },
+    sectionAction: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    sectionActionText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: "600",
+      marginRight: spacing.xs,
+    },
+    categoryScroll: {
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.md,
+      gap: spacing.sm,
+    },
+    categoryPill: {
+      marginRight: spacing.sm,
+      backgroundColor: colors.card,
+      borderRadius: radii.pill,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+      flexDirection: "row",
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    categoryPillActive: {
+      backgroundColor: colors.primaryMuted,
+      borderColor: colors.accent,
+      borderWidth: 2,
+    },
+    categoryFilterHeader: {
+      marginTop: spacing.lg,
+      marginHorizontal: spacing.lg,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      backgroundColor: colors.primaryMuted,
+      borderRadius: radii.sm,
+      borderWidth: 1,
+      borderColor: colors.accent,
+    },
+    categoryFilterText: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    categoryIconWrapper: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: spacing.sm,
+    },
+    categoryLabel: {
+      color: colors.textPrimary,
+      fontWeight: "600",
+      fontSize: 14,
+    },
+    featuredScroll: {
+      paddingHorizontal: responsive.isSmallDevice ? spacing.md : spacing.lg,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.sm,
+      gap: responsive.isSmallDevice ? spacing.md : spacing.lg,
+    },
+    restaurantCard: {
+      width: getCardWidth(),
+      backgroundColor: colors.card,
+      borderRadius: radii.lg,
+      marginRight: spacing.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: "hidden",
+    },
+    restaurantImage: {
+      width: "100%",
+      height: isSmallDevice ? 120 : isMediumDevice ? 140 : 150,
+      resizeMode: "cover",
+    },
+    restaurantBody: {
+      padding: spacing.lg,
+      gap: spacing.sm,
+    },
+    restaurantTitleRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    restaurantName: {
+      ...typography.title,
+      color: colors.textPrimary,
+      flex: 1,
+      marginRight: spacing.sm,
+    },
+    ratingBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+      backgroundColor: colors.highlight,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+      borderRadius: radii.sm,
+    },
+    ratingText: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      fontWeight: "600",
+    },
+    restaurantMeta: {
+      color: colors.textSecondary,
+      fontSize: 13,
+    },
+    tagRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: spacing.xs,
+    },
+    tagPill: {
+      backgroundColor: colors.surface,
+      borderRadius: radii.pill,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+    },
+    tagText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    promoBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+      backgroundColor: "rgba(46, 107, 255, 0.12)",
+      borderRadius: radii.sm,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+    },
+    promoText: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    quickGrid: {
+      flexDirection: "row",
+      paddingHorizontal: responsive.isSmallDevice ? spacing.md : spacing.lg,
+      columnGap: responsive.isSmallDevice ? spacing.md : spacing.lg,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.xl,
+    },
+    quickColumn: {
+      flex: 1,
+      rowGap: responsive.isSmallDevice ? spacing.md : spacing.lg,
+    },
+    quickCard: {
+      flex: 1,
+      backgroundColor: colors.card,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: "hidden",
+    },
+    quickImageContainer: {
+      position: "relative",
+      width: "100%",
+      height: 110,
+      backgroundColor: colors.surface,
+    },
+    quickImage: {
+      width: "100%",
+      height: "100%",
+      resizeMode: "cover",
+    },
+    quickClosedOverlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    quickClosedBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs / 2,
+      backgroundColor: colors.error,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+      borderRadius: radii.md,
+    },
+    quickClosedText: {
+      color: colors.card,
+      fontSize: 13,
+      fontWeight: "700",
+      textTransform: "uppercase",
+    },
+    quickBody: {
+      padding: spacing.md,
+      gap: spacing.xs,
+    },
+    quickTitle: {
+      color: colors.textPrimary,
+      fontWeight: "600",
+      fontSize: responsive.scale(16),
+    },
+    quickVendorRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs / 2,
+      marginTop: spacing.xs / 2,
+    },
+    quickVendorText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: "500",
+    },
+    quickMetaRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs / 2,
+      marginTop: spacing.xs / 2,
+    },
+    quickMetaItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 2,
+    },
+    quickMetaDot: {
+      width: 3,
+      height: 3,
+      borderRadius: 1.5,
+      backgroundColor: colors.textMuted,
+      marginHorizontal: spacing.xs / 2,
+    },
+    quickMeta: {
+      color: colors.textSecondary,
+      fontSize: 13,
+    },
+    quickMetaMuted: {
+      color: colors.textMuted,
+      fontSize: 12,
+    },
+    bottomNav: {
+      position: "absolute",
+      left: spacing.lg,
+      right: spacing.lg,
+      bottom: spacing.lg,
+      backgroundColor: colors.surface,
+      borderRadius: radii.lg,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.sm,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: spacing.sm,
+      shadowColor: "#000",
+      shadowOpacity: 0.25,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 12 },
+      elevation: 12,
+      zIndex: 1000,
+    },
+    bottomNavItem: {
+      flex: 1,
+      alignItems: "center",
+    },
+    pageContainer: {
+      flex: 1,
+      width: "100%",
+      paddingTop: headerPaddingTop,
+      paddingBottom: spacing.xl * 2,
+    },
+    pageLayer: {
+      ...StyleSheet.absoluteFillObject,
+    },
+    pageVisible: {
+      opacity: 1,
+      zIndex: 1,
+    },
+    pageHidden: {
+      opacity: 0,
+      zIndex: 0,
+    },
+    navChip: {
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: spacing.xs / 2,
+      borderRadius: radii.md,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.xs,
+    },
+    navChipActive: {
+      backgroundColor: "transparent",
+    },
+    navLabel: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: "500",
+    },
+    navLabelActive: {
+      color: colors.primary,
+      fontWeight: "600",
+    },
+    // Cart Header Styles
+    headerRight: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+    },
+    cartButton: {
+      width: 48,
+      height: 48,
+      borderRadius: radii.lg,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+      position: "relative",
+    },
+    cartBadge: {
+      position: "absolute",
+      top: -8,
+      right: -8,
+      backgroundColor: colors.accent,
+      borderRadius: radii.pill,
+      width: 24,
+      height: 24,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    cartBadgeText: {
+      color: colors.background,
+      fontWeight: "700",
+      fontSize: 12,
+    },
+    // Cart Modal Styles
+    cartModal: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 2000,
+    },
+    cartOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0, 0, 0, 0.7)",
+    },
+    cartContent: {
+      position: "absolute",
+      bottom: 0,
+      left: 0,
+      right: 0,
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: radii.lg,
+      borderTopRightRadius: radii.lg,
+      maxHeight: "90%",
+      minHeight: "50%",
+      flexDirection: "column",
+    },
+    cartContentExpanded: {
+      position: "absolute",
+      top: 0,
+      bottom: 0,
+      maxHeight: "100%",
+      minHeight: "100%",
+      borderTopLeftRadius: 0,
+      borderTopRightRadius: 0,
+    },
+    cartHandle: {
+      alignItems: "center",
+      paddingVertical: spacing.sm,
+    },
+    handleBar: {
+      width: 40,
+      height: 4,
+      backgroundColor: colors.border,
+      borderRadius: 2,
+    },
+    cartHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    cartHeaderActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+    },
+    expandButton: {
+      width: 40,
+      height: 40,
+      borderRadius: radii.md,
+      backgroundColor: colors.card,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    cartTitle: {
+      ...typography.headline,
+      color: colors.textPrimary,
+    },
+    emptyCart: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingVertical: spacing.xl * 2,
+      gap: spacing.md,
+    },
+    emptyCartText: {
+      ...typography.title,
+      color: colors.textPrimary,
+    },
+    emptyCartSubtext: {
+      color: colors.textSecondary,
+      textAlign: "center",
+      paddingHorizontal: spacing.lg,
+    },
+    cartItemsList: {
+      flex: 1,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+    },
+    cartItem: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    cartItemImage: {
+      width: 50,
+      height: 50,
+      borderRadius: radii.md,
+      marginRight: spacing.md,
+    },
+    cartItemInfo: {
+      flex: 1,
+    },
+    cartItemTitle: {
+      ...typography.body,
+      color: colors.textPrimary,
+    },
+    cartItemPrice: {
+      color: colors.accent,
+      fontWeight: "600",
+      marginTop: spacing.xs,
+    },
+    cartItemOption: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      marginTop: 2,
+    },
+    quantityControl: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      backgroundColor: colors.card,
+      borderRadius: radii.md,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+    },
+    quantityButton: {
+      width: 28,
+      height: 28,
+      borderRadius: radii.sm,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    quantityText: {
+      color: colors.textPrimary,
+      fontWeight: "600",
+      minWidth: 24,
+      textAlign: "center",
+    },
+    cartSummary: {
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.lg,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    deliveryLocationRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.surface,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      borderRadius: radii.sm,
+      marginBottom: spacing.md,
+      gap: spacing.xs,
+    },
+    deliveryLocationLabel: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      marginLeft: spacing.xs,
+    },
+    deliveryLocationValue: {
+      color: colors.accent,
+      fontSize: 13,
+      fontWeight: "700",
+    },
+    summaryRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: spacing.sm,
+    },
+    summaryLabel: {
+      color: colors.textSecondary,
+      fontSize: 14,
+    },
+    summaryValue: {
+      color: colors.textPrimary,
+      fontWeight: "600",
+    },
+    totalRow: {
+      paddingTopMargin: spacing.md,
+      paddingTop: spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      marginBottomMargin: spacing.lg,
+      marginBottom: spacing.lg,
+    },
+    totalLabel: {
+      ...typography.title,
+      color: colors.textPrimary,
+    },
+    totalValue: {
+      ...typography.title,
+      color: colors.accent,
+    },
+    checkoutButton: {
+      backgroundColor: colors.primary,
+      borderRadius: radii.md,
+      paddingVertical: spacing.md,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: spacing.sm,
+    },
+    checkoutButtonDisabled: {
+      backgroundColor: colors.primaryMuted,
+      opacity: 0.6,
+    },
+    checkoutButtonText: {
+      color: colors.card,
+      fontWeight: "700",
+      fontSize: 16,
+    },
+    clearCartButton: {
+      backgroundColor: colors.card,
+      borderRadius: radii.md,
+      paddingVertical: spacing.md,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    clearCartButtonText: {
+      color: colors.textPrimary,
+      fontWeight: "600",
+      fontSize: 14,
+    },
+    // Schedule Delivery Styles
+    scheduleSection: {
+      marginTop: spacing.md,
+      marginBottom: spacing.sm,
+      gap: spacing.sm,
+    },
+    scheduleToggle: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: spacing.sm,
+    },
+    scheduleToggleLeft: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+    },
+    scheduleToggleText: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: "600",
+    },
+    datePickerButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      backgroundColor: colors.surface,
+      borderRadius: radii.md,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    datePickerText: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    datePickerModal: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
+      justifyContent: "flex-end",
+    },
+    datePickerContent: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: radii.xl,
+      borderTopRightRadius: radii.xl,
+      maxHeight: "70%",
+    },
+    datePickerHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: spacing.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    datePickerTitle: {
+      ...typography.title,
+      color: colors.textPrimary,
+    },
+    timeSlotsList: {
+      maxHeight: 400,
+    },
+    timeSlot: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    timeSlotText: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      fontWeight: "500",
+    },
+    // Quick Bites Styles
+    quickGrid: {
+      flexDirection: "row",
+      gap: spacing.md,
+    },
+    quickColumn: {
+      flex: 1,
+      gap: spacing.md,
+    },
+    quickCard: {
+      backgroundColor: colors.card,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: "hidden",
+    },
+    quickImageContainer: {
+      position: "relative",
+      width: "100%",
+      height: 120,
+    },
+    quickImage: {
+      width: "100%",
+      height: "100%",
+    },
+    quickClosedOverlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    quickClosedBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs / 2,
+      backgroundColor: colors.error,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+      borderRadius: radii.md,
+    },
+    quickClosedText: {
+      color: colors.card,
+      fontSize: 13,
+      fontWeight: "700",
+      textTransform: "uppercase",
+    },
+    quickBody: {
+      padding: spacing.md,
+      gap: spacing.xs,
+    },
+    quickTitle: {
+      ...typography.body,
+      color: colors.textPrimary,
+      fontWeight: "600",
+    },
+    quickMeta: {
+      color: colors.textSecondary,
+      fontSize: 13,
+    },
+    quickMetaMuted: {
+      color: colors.textMuted,
+      fontSize: 12,
+    },
+    quickFooter: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginTop: spacing.sm,
+    },
+    quickPrice: {
+      ...typography.title,
+      color: colors.textPrimary,
+      fontSize: 16,
+    },
+    quickAddButton: {
+      width: 32,
+      height: 32,
+      borderRadius: radii.sm,
+      backgroundColor: colors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    // Modal Styles
+    modalOverlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0, 0, 0, 0.7)",
+      justifyContent: "flex-end",
+      zIndex: 9000,
+    },
+    modalContent: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: radii.xl,
+      borderTopRightRadius: radii.xl,
+      maxHeight: "80%",
+      paddingBottom: spacing.xl,
+    },
+    modalHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: spacing.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    modalTitle: {
+      ...typography.headline,
+      color: colors.textPrimary,
+      fontSize: 20,
+    },
+    modalBody: {
+      maxHeight: 400,
+    },
+    modalButton: {
+      backgroundColor: colors.primary,
+      borderRadius: radii.md,
+      paddingVertical: spacing.md,
+      alignItems: "center",
+      justifyContent: "center",
+      marginHorizontal: spacing.lg,
+      marginTop: spacing.lg,
+    },
+    modalButtonText: {
+      color: colors.card,
+      fontWeight: "700",
+      fontSize: 16,
+    },
+    optionPickerMealName: {
+      color: colors.textPrimary,
+      fontSize: 18,
+      fontWeight: "700",
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.md,
+    },
+    optionPickerOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0, 0, 0, 0.6)",
+      justifyContent: "flex-end",
+    },
+    optionPickerSheet: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: radii.lg,
+      borderTopRightRadius: radii.lg,
+      paddingTop: spacing.lg,
+      paddingBottom: spacing.xl,
+      maxHeight: "82%",
+    },
+    optionPickerHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: spacing.lg,
+      marginBottom: spacing.sm,
+    },
+    optionPickerTitle: {
+      ...typography.title,
+      color: colors.textPrimary,
+    },
+    optionPickerBody: {
+      maxHeight: 360,
+    },
+    optionPickerSectionTitle: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      fontWeight: "700",
+      paddingHorizontal: spacing.lg,
+      marginTop: spacing.lg,
+      marginBottom: spacing.sm,
+    },
+    optionPickerChipWrap: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: spacing.sm,
+      paddingHorizontal: spacing.lg,
+    },
+    optionPickerChip: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      borderRadius: radii.pill,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    optionPickerChipActive: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primary + "22",
+    },
+    optionPickerChipText: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      fontWeight: "600",
+    },
+    optionPickerChipTextActive: {
+      color: colors.primary,
+    },
+    optionPickerHintText: {
+      color: colors.textMuted,
+      fontSize: 13,
+      paddingHorizontal: spacing.lg,
+    },
+    optionPickerActions: {
+      flexDirection: "row",
+      gap: spacing.md,
+      marginTop: spacing.lg,
+      paddingHorizontal: spacing.lg,
+    },
+    optionPickerButton: {
+      flex: 1,
+      borderRadius: radii.md,
+      paddingVertical: spacing.md,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    optionPickerCancelButton: {
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    optionPickerCancelText: {
+      color: colors.textPrimary,
+      fontWeight: "600",
+      fontSize: 15,
+    },
+    optionPickerConfirmButton: {
+      backgroundColor: colors.primary,
+    },
+    optionPickerConfirmText: {
+      color: colors.card,
+      fontWeight: "700",
+      fontSize: 15,
+    },
+    paymentChoiceOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0, 0, 0, 0.55)",
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: spacing.lg,
+    },
+    paymentChoiceCard: {
+      width: "100%",
+      maxWidth: 420,
+      backgroundColor: colors.card,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.lg,
+      gap: spacing.md,
+    },
+    paymentChoiceTitle: {
+      ...typography.title,
+      color: colors.textPrimary,
+      fontSize: 20,
+      textAlign: "center",
+    },
+    paymentChoiceDescription: {
+      color: colors.textSecondary,
+      textAlign: "center",
+      lineHeight: 20,
+    },
+    paymentChoiceActions: {
+      gap: spacing.sm,
+    },
+    paymentChoiceButton: {
+      borderRadius: radii.md,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: spacing.md,
+    },
+    paymentChoiceButtonPrimary: {
+      backgroundColor: colors.primary,
+    },
+    paymentChoiceButtonSecondary: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    paymentChoiceButtonPrimaryText: {
+      color: colors.card,
+      fontWeight: "700",
+      fontSize: 15,
+    },
+    paymentChoiceButtonSecondaryText: {
+      color: colors.textPrimary,
+      fontWeight: "700",
+      fontSize: 15,
+    },
+    paymentChoiceCancelButton: {
+      marginTop: spacing.xs,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: spacing.sm,
+    },
+    paymentChoiceCancelText: {
+      color: colors.textSecondary,
+      fontWeight: "600",
+    },
+    filterOption: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: spacing.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      gap: spacing.md,
+    },
+    filterOptionActive: {
+      backgroundColor: colors.surface,
+    },
+    filterOptionText: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: "500",
+    },
+    filterOptionTextActive: {
+      color: colors.accent,
+      fontWeight: "700",
+    },
+    filterIconWrapper: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    locationInfo: {
+      flex: 1,
+    },
+    locationDistance: {
+      color: colors.textMuted,
+      fontSize: 12,
+      marginTop: spacing.xs,
+    },
+    subLocationsSection: {
+      marginTop: spacing.lg,
+      paddingTop: spacing.lg,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    subLocationsTitle: {
+      ...typography.body,
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: "600",
+      marginBottom: spacing.md,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+    },
+    subLocationOption: {
+      marginLeft: spacing.lg,
+      paddingLeft: spacing.lg,
+      borderLeftWidth: 2,
+      borderLeftColor: colors.border,
+    },
+    subLocationText: {
+      fontSize: 14,
+    },
+  });
 
 const AppWithAuth = () => (
   <AuthProvider>
-    <NotificationProvider>
-      <App />
-    </NotificationProvider>
+    <ThemeProvider>
+      <NotificationProvider>
+        <App />
+      </NotificationProvider>
+    </ThemeProvider>
   </AuthProvider>
 );
 

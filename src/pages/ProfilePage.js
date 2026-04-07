@@ -1,70 +1,56 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
-  ActivityIndicator,
+  Appearance,
   Image,
   Linking,
   Modal,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import * as Updates from "expo-updates";
 
-import { colors, spacing, radii, typography, responsive } from "../theme";
-import { useAuth } from "../contexts/AuthContext";
-import { useNotification } from "../contexts/NotificationContext";
 import {
-  updateUserProfile,
-  fetchUserStats,
-  fetchRewardBadges,
-  fetchPaymentMethods,
-} from "../services/api";
+  getThemeModeLabel,
+  spacing,
+  radii,
+  typography,
+  responsive,
+  THEME_MODES,
+} from "../theme";
+import { useAuth } from "../contexts/AuthContext";
+import { useTheme } from "../contexts/ThemeContext";
+import { useNotification } from "../contexts/NotificationContext";
+import { updateUserProfile, fetchUserStats } from "../services/api";
 import { supabase } from "../config/supabase";
 import { useDataFetching } from "../hooks/useDataFetching";
+import LoadingPlaceholder from "../components/LoadingPlaceholder";
 
-const rewardBadges = [
-  {
-    id: "glow-gold",
-    label: "Glow Gold",
-    description: "Unlocked for 12 consecutive late-night orders",
-    icon: "crown",
-    color: colors.accent,
-  },
-  {
-    id: "night-owl",
-    label: "Night Owl",
-    description: "Delivered between midnight and 3am five nights in a row",
-    icon: "moon-waxing-crescent",
-    color: colors.primary,
-  },
-];
-
-const paymentMethods = [
-  {
-    id: "mobile-money",
-    label: "Mobile Money (MTN, Vodafone, AirtelTigo)",
-    icon: "phone-portrait",
-  },
-  { id: "card", label: "Debit/Credit Card (Visa, Mastercard)", icon: "card" },
-  { id: "bank", label: "Bank Transfer", icon: "business" },
-  { id: "ussd", label: "USSD Banking", icon: "keypad" },
-];
-
-export default function ProfilePage({ onNavigateToOrders, onOpenPrivacy }) {
+export default function ProfilePage({
+  onNavigateToOrderHistory,
+  onOpenPrivacy,
+}) {
   const { user, profile, signOut, updateProfile } = useAuth();
+  const { themeMode, updateThemeMode, colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const notification = useNotification();
-  const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
-  const [darkModeEnabled] = React.useState(true);
+  const [themeModalVisible, setThemeModalVisible] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = React.useState(false);
   const [deletePassword, setDeletePassword] = React.useState("");
   const [deleteReason, setDeleteReason] = React.useState("");
   const [deletingAccount, setDeletingAccount] = React.useState(false);
+  const [passwordModalVisible, setPasswordModalVisible] = React.useState(false);
+  const [newPassword, setNewPassword] = React.useState("");
+  const [confirmPassword, setConfirmPassword] = React.useState("");
+  const [updatingPassword, setUpdatingPassword] = React.useState(false);
+  const [showNewPassword, setShowNewPassword] = React.useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
   const [editedProfile, setEditedProfile] = React.useState({
     username: profile?.username || "",
     full_name: profile?.full_name || "",
@@ -72,31 +58,16 @@ export default function ProfilePage({ onNavigateToOrders, onOpenPrivacy }) {
     address: profile?.address || "",
   });
 
+  const systemColorScheme = Appearance.getColorScheme();
+  const effectiveTheme =
+    themeMode === "system" ? systemColorScheme || "dark" : themeMode;
+
   // Fetch dynamic data with cache keys and user dependency
   const {
     data: userStats,
     loading: statsLoading,
     refresh: refreshStats,
   } = useDataFetching(fetchUserStats, [user?.id], `user-stats-${user?.id}`);
-  const {
-    data: rewardBadgesData,
-    loading: badgesLoading,
-    refresh: refreshBadges,
-  } = useDataFetching(
-    fetchRewardBadges,
-    [user?.id],
-    `reward-badges-${user?.id}`,
-  );
-  const {
-    data: paymentMethodsData,
-    loading: paymentsLoading,
-    refresh: refreshPayments,
-  } = useDataFetching(
-    fetchPaymentMethods,
-    [user?.id],
-    `payment-methods-${user?.id}`,
-  );
-
   React.useEffect(() => {
     if (profile) {
       console.log("Profile loaded:", profile);
@@ -251,13 +222,8 @@ export default function ProfilePage({ onNavigateToOrders, onOpenPrivacy }) {
   };
 
   const handleOrderHistory = () => {
-    // Navigate to orders page with history filter
-    if (onNavigateToOrders) {
-      onNavigateToOrders();
-      // Scroll to history section will be handled by OrdersPage
-      setTimeout(() => {
-        notification.info("Order History", "Viewing your order history");
-      }, 300);
+    if (onNavigateToOrderHistory) {
+      onNavigateToOrderHistory();
     } else {
       notification.info(
         "Order History",
@@ -277,6 +243,82 @@ export default function ProfilePage({ onNavigateToOrders, onOpenPrivacy }) {
         "Privacy Center",
         "Privacy settings will be available soon.",
       );
+    }
+  };
+
+  const handleOpenNotificationSettings = async () => {
+    try {
+      await Linking.openSettings();
+    } catch (error) {
+      notification.error(
+        "Settings Unavailable",
+        "Unable to open notification settings on this device.",
+      );
+    }
+  };
+
+  const themeLabelMap = {
+    system: getThemeModeLabel(THEME_MODES.SYSTEM, effectiveTheme),
+    dark: getThemeModeLabel(THEME_MODES.DARK, effectiveTheme),
+    light: getThemeModeLabel(THEME_MODES.LIGHT, effectiveTheme),
+  };
+
+  const handleSelectThemeMode = async (mode) => {
+    notification.success("Theme", `Theme set to ${themeLabelMap[mode]}.`);
+    await updateThemeMode(mode);
+    setThemeModalVisible(false);
+  };
+
+  const openPasswordModal = () => {
+    setPasswordModalVisible(true);
+  };
+
+  const closePasswordModal = () => {
+    setPasswordModalVisible(false);
+    setNewPassword("");
+    setConfirmPassword("");
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
+  };
+
+  const handleChangePassword = async () => {
+    if (!newPassword || !confirmPassword) {
+      notification.warning("Missing Fields", "Please fill in both fields.");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      notification.warning(
+        "Weak Password",
+        "Password must be at least 6 characters.",
+      );
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      notification.warning("Mismatch", "Passwords do not match.");
+      return;
+    }
+
+    setUpdatingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) {
+        throw new Error(error.message || "Failed to update password.");
+      }
+
+      closePasswordModal();
+      notification.success("Password Updated", "Your password was changed.");
+    } catch (error) {
+      notification.error(
+        "Update Failed",
+        error.message || "Could not update password. Please try again.",
+      );
+    } finally {
+      setUpdatingPassword(false);
     }
   };
 
@@ -514,98 +556,260 @@ export default function ProfilePage({ onNavigateToOrders, onOpenPrivacy }) {
           label="Total Orders"
           value={`${userStats?.orderCount || 0} orders`}
           icon="receipt"
+          styles={styles}
+          colors={colors}
         />
         <StatCard
           label="Reviews Made"
           value={`${userStats?.reviewCount || 0} reviews`}
           icon="star"
+          styles={styles}
+          colors={colors}
         />
         <StatCard
           label="Reward tier"
           value={userStats?.rewardTier || "Bronze"}
           icon="medal"
+          styles={styles}
+          colors={colors}
         />
       </View>
 
-      <SectionHeader title="Rewards" />
-      <View style={styles.badgeList}>
-        {(rewardBadgesData || rewardBadges).map((badge) => (
-          <View key={badge.id} style={styles.badgeCard}>
-            <View style={[styles.badgeIcon, { backgroundColor: badge.color }]}>
-              <MaterialCommunityIcons
-                name={badge.icon}
-                size={20}
-                color={colors.background}
-              />
-            </View>
-            <View style={styles.badgeBody}>
-              <Text style={styles.badgeTitle}>{badge.label}</Text>
-              <Text style={styles.badgeDescription}>{badge.description}</Text>
-            </View>
-          </View>
-        ))}
-      </View>
-
-      <SectionHeader title="Payment methods" />
-      <View style={styles.paymentList}>
-        <Text style={styles.paymentNote}>
-          All payments are securely processed via Paystack
-        </Text>
-        {paymentMethods.map((method) => (
-          <View key={method.id} style={styles.paymentCard}>
-            <View style={styles.paymentInfo}>
-              <Ionicons name={method.icon} size={20} color={colors.accent} />
-              <Text style={styles.paymentLabel}>{method.label}</Text>
-            </View>
-          </View>
-        ))}
-      </View>
-
-      <SectionHeader title="Preferences" />
+      <SectionHeader title="Settings" styles={styles} colors={colors} />
       <View style={styles.preferenceList}>
-        <View style={styles.comingSoonCard}>
-          <Ionicons name="time-outline" size={32} color={colors.accent} />
-          <Text style={styles.comingSoonTitle}>Coming Soon</Text>
-          <Text style={styles.comingSoonText}>
-            Preference settings will be available in the next update
-          </Text>
-        </View>
+        <SupportRow
+          icon="moon"
+          label="Theme"
+          description={themeLabelMap[themeMode]}
+          onPress={() => setThemeModalVisible(true)}
+          styles={styles}
+          colors={colors}
+        />
+        <SupportRow
+          icon="notifications"
+          label="Enable Notifications"
+          description="Open native settings to manage notifications"
+          onPress={handleOpenNotificationSettings}
+          styles={styles}
+          colors={colors}
+        />
+        <SupportRow
+          icon="create"
+          label="Edit profile"
+          description="Update your personal details"
+          onPress={() => setIsEditing(true)}
+          styles={styles}
+          colors={colors}
+        />
       </View>
 
-      <SectionHeader title="Support" />
-      <View style={styles.supportList}>
+      <SectionHeader title="Support" styles={styles} colors={colors} />
+      <View style={[styles.supportList, styles.supportGroupSpacing]}>
         <SupportRow
           icon="chatbubble-ellipses"
           label="Contact concierge"
           description="Reach our 24/7 support team on chat"
           onPress={handleContactSupport}
+          styles={styles}
+          colors={colors}
         />
         <SupportRow
           icon="document-text"
           label="Order history"
           description="Download statements and invoices"
           onPress={handleOrderHistory}
+          styles={styles}
+          colors={colors}
         />
+      </View>
+
+      <SectionHeader
+        title="Privacy & Security"
+        styles={styles}
+        colors={colors}
+      />
+      <View style={styles.supportList}>
         <SupportRow
           icon="shield-checkmark"
-          label="Privacy center"
-          description="Control data sharing and preferences"
+          label="Privacy and policy"
+          description="Control data sharing and app policies"
           onPress={handlePrivacyCenter}
+          styles={styles}
+          colors={colors}
+        />
+        <SupportRow
+          icon="lock-closed"
+          label="Change password"
+          description="Update your password in app"
+          onPress={openPasswordModal}
+          styles={styles}
+          colors={colors}
+        />
+        <SupportRow
+          icon="trash-outline"
+          label="Delete account"
+          description="Permanently remove your account"
+          onPress={promptDeleteAccount}
+          destructive
+          styles={styles}
+          colors={colors}
         />
       </View>
 
       <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-        <Ionicons name="log-out-outline" size={20} color="#ff4444" />
+        <Ionicons name="log-out-outline" size={20} color={colors.danger} />
         <Text style={styles.signOutText}>Sign Out</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.deleteAccountButton}
-        onPress={promptDeleteAccount}
+      <Modal
+        visible={themeModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setThemeModalVisible(false)}
       >
-        <Ionicons name="trash-outline" size={20} color={colors.error} />
-        <Text style={styles.deleteAccountText}>Delete Account</Text>
-      </TouchableOpacity>
+        <View style={styles.deleteModalOverlay}>
+          <View style={styles.deleteModalContent}>
+            <Text style={styles.deleteModalTitle}>Theme</Text>
+            <Text style={styles.deleteModalDescription}>
+              Choose your preferred app appearance.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.themeOptionRow}
+              onPress={() => handleSelectThemeMode("system")}
+            >
+              <Text style={styles.themeOptionLabel}>Follow system</Text>
+              <Ionicons
+                name={
+                  themeMode === "system"
+                    ? "radio-button-on"
+                    : "radio-button-off"
+                }
+                size={20}
+                color={
+                  themeMode === "system" ? colors.primary : colors.textSecondary
+                }
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.themeOptionRow}
+              onPress={() => handleSelectThemeMode("dark")}
+            >
+              <Text style={styles.themeOptionLabel}>Default dark</Text>
+              <Ionicons
+                name={
+                  themeMode === "dark" ? "radio-button-on" : "radio-button-off"
+                }
+                size={20}
+                color={
+                  themeMode === "dark" ? colors.primary : colors.textSecondary
+                }
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.themeOptionRow}
+              onPress={() => handleSelectThemeMode("light")}
+            >
+              <Text style={styles.themeOptionLabel}>Light</Text>
+              <Ionicons
+                name={
+                  themeMode === "light" ? "radio-button-on" : "radio-button-off"
+                }
+                size={20}
+                color={
+                  themeMode === "light" ? colors.primary : colors.textSecondary
+                }
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={passwordModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={closePasswordModal}
+      >
+        <View style={styles.deleteModalOverlay}>
+          <View style={styles.deleteModalContent}>
+            <Text style={styles.deleteModalTitle}>Change Password</Text>
+            <Text style={styles.deleteModalDescription}>
+              Enter a new password for your account.
+            </Text>
+
+            <View style={styles.passwordInputWrap}>
+              <TextInput
+                style={styles.deleteInput}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                placeholder="New password"
+                placeholderTextColor={colors.textSecondary}
+                secureTextEntry={!showNewPassword}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                style={styles.passwordToggleButton}
+                onPress={() => setShowNewPassword((prev) => !prev)}
+              >
+                <Ionicons
+                  name={showNewPassword ? "eye-off-outline" : "eye-outline"}
+                  size={20}
+                  color={colors.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.passwordInputWrap}>
+              <TextInput
+                style={styles.deleteInput}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="Confirm new password"
+                placeholderTextColor={colors.textSecondary}
+                secureTextEntry={!showConfirmPassword}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                style={styles.passwordToggleButton}
+                onPress={() => setShowConfirmPassword((prev) => !prev)}
+              >
+                <Ionicons
+                  name={showConfirmPassword ? "eye-off-outline" : "eye-outline"}
+                  size={20}
+                  color={colors.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.deleteModalActions}>
+              <TouchableOpacity
+                style={styles.deleteCancelButton}
+                onPress={closePasswordModal}
+                disabled={updatingPassword}
+              >
+                <Text style={styles.deleteCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.deleteConfirmButton,
+                  styles.passwordUpdateButton,
+                ]}
+                onPress={handleChangePassword}
+                disabled={updatingPassword}
+              >
+                {updatingPassword ? (
+                  <LoadingPlaceholder width={16} height={16} borderRadius={8} />
+                ) : (
+                  <Text style={styles.deleteConfirmText}>Update</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={deleteModalVisible}
@@ -655,7 +859,7 @@ export default function ProfilePage({ onNavigateToOrders, onOpenPrivacy }) {
                 disabled={deletingAccount}
               >
                 {deletingAccount ? (
-                  <ActivityIndicator size="small" color={colors.card} />
+                  <LoadingPlaceholder width={16} height={16} borderRadius={8} />
                 ) : (
                   <Text style={styles.deleteConfirmText}>Delete</Text>
                 )}
@@ -668,7 +872,7 @@ export default function ProfilePage({ onNavigateToOrders, onOpenPrivacy }) {
   );
 }
 
-function SectionHeader({ title, actionLabel }) {
+function SectionHeader({ title, actionLabel, styles, colors }) {
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -686,7 +890,7 @@ function SectionHeader({ title, actionLabel }) {
   );
 }
 
-function StatCard({ label, value, icon }) {
+function StatCard({ label, value, icon, styles, colors }) {
   return (
     <View style={styles.statCard}>
       <Ionicons name={icon} size={20} color={colors.accent} />
@@ -733,17 +937,41 @@ function PreferenceRow({
   );
 }
 
-function SupportRow({ icon, label, description, onPress }) {
+function SupportRow({
+  icon,
+  label,
+  description,
+  onPress,
+  destructive = false,
+  styles,
+  colors,
+}) {
   return (
     <TouchableOpacity
-      style={styles.supportRow}
+      style={[styles.supportRow, destructive && styles.supportRowDestructive]}
       onPress={onPress || (() => console.log(`${label} pressed`))}
     >
-      <View style={styles.supportIcon}>
-        <Ionicons name={icon} size={20} color={colors.textPrimary} />
+      <View
+        style={[
+          styles.supportIcon,
+          destructive && styles.supportIconDestructive,
+        ]}
+      >
+        <Ionicons
+          name={icon}
+          size={20}
+          color={destructive ? colors.danger : colors.textPrimary}
+        />
       </View>
       <View style={styles.supportBody}>
-        <Text style={styles.supportLabel}>{label}</Text>
+        <Text
+          style={[
+            styles.supportLabel,
+            destructive && styles.supportLabelDestructive,
+          ]}
+        >
+          {label}
+        </Text>
         <Text style={styles.supportDescription}>{description}</Text>
       </View>
       <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
@@ -751,437 +979,448 @@ function SupportRow({ icon, label, description, onPress }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    paddingVertical: spacing.xl,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: 50,
-    gap: spacing.xl,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  headerInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: radii.lg,
-    borderWidth: 2,
-    borderColor: colors.highlight,
-  },
-  name: {
-    ...typography.headline,
-    color: colors.textPrimary,
-    maxWidth: 120,
-  },
-  email: {
-    color: colors.textSecondary,
-    fontSize: responsive.scale(12),
-    marginTop: spacing.xs / 2,
-  },
-  location: {
-    color: colors.textSecondary,
-  },
-  editButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    backgroundColor: colors.accent,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radii.pill,
-  },
-  editButtonText: {
-    color: colors.background,
-    fontWeight: "700",
-    fontSize: 14,
-  },
-  statsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: spacing.md,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: colors.card,
-    paddingVertical: spacing.lg,
-    borderRadius: radii.lg,
-    alignItems: "center",
-    gap: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  statValue: {
-    color: colors.textPrimary,
-    fontWeight: "700",
-    fontSize: 18,
-  },
-  statLabel: {
-    color: colors.textSecondary,
-    fontSize: 13,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  sectionTitle: {
-    ...typography.title,
-    color: colors.textPrimary,
-  },
-  sectionAction: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  sectionActionText: {
-    color: colors.textSecondary,
-    fontWeight: "600",
-  },
-  badgeList: {
-    gap: spacing.md,
-  },
-  badgeCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
-    gap: spacing.md,
-  },
-  badgeIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: radii.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  badgeBody: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  badgeTitle: {
-    ...typography.body,
-    color: colors.textPrimary,
-    fontWeight: "600",
-  },
-  badgeDescription: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  paymentList: {
-    gap: spacing.sm,
-  },
-  paymentNote: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    marginBottom: spacing.xs,
-    fontStyle: "italic",
-  },
-  paymentCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: colors.card,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  paymentInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  paymentLabel: {
-    color: colors.textPrimary,
-    fontWeight: "600",
-  },
-  addPaymentButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    paddingVertical: spacing.md,
-  },
-  addPaymentText: {
-    color: colors.primary,
-    fontWeight: "700",
-  },
-  preferenceList: {
-    gap: spacing.sm,
-  },
-  comingSoonCard: {
-    backgroundColor: colors.card,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.xl,
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  comingSoonTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: colors.textPrimary,
-  },
-  comingSoonText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  preferenceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.card,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    gap: spacing.md,
-  },
-  preferenceIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radii.sm,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  preferenceBody: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  preferenceLabel: {
-    ...typography.body,
-    color: colors.textPrimary,
-    fontWeight: "600",
-  },
-  preferenceDescription: {
-    color: colors.textSecondary,
-    fontSize: 13,
-  },
-  supportList: {
-    gap: spacing.sm,
-  },
-  supportRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    gap: spacing.md,
-  },
-  supportIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: radii.md,
-    backgroundColor: colors.card,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  supportBody: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  supportLabel: {
-    color: colors.textPrimary,
-    fontWeight: "600",
-  },
-  supportDescription: {
-    color: colors.textSecondary,
-    fontSize: 13,
-  },
-  editSection: {
-    backgroundColor: colors.card,
-    borderRadius: radii.lg,
-    padding: spacing.lg,
-    gap: spacing.lg,
-  },
-  editSectionTitle: {
-    ...typography.title,
-    color: colors.textPrimary,
-    fontSize: 18,
-  },
-  inputContainer: {
-    gap: spacing.xs,
-  },
-  inputLabel: {
-    color: colors.textPrimary,
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    color: colors.textPrimary,
-    backgroundColor: colors.background,
-    fontSize: 16,
-  },
-  inputDisabled: {
-    backgroundColor: colors.surface,
-    color: colors.textMuted,
-    opacity: 0.7,
-  },
-  editActions: {
-    flexDirection: "row",
-    gap: spacing.md,
-    marginTop: spacing.md,
-  },
-  editActionButton: {
-    flex: 1,
-    height: 44,
-    borderRadius: radii.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cancelButton: {
-    backgroundColor: colors.border,
-  },
-  saveButton: {
-    backgroundColor: colors.primary,
-  },
-  cancelButtonText: {
-    color: colors.textSecondary,
-    fontWeight: "600",
-  },
-  saveButtonText: {
-    color: colors.card,
-    fontWeight: "600",
-  },
-  signOutButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    padding: spacing.lg,
-    backgroundColor: colors.card,
-    borderRadius: radii.lg,
-    marginTop: spacing.lg,
-  },
-  signOutText: {
-    color: "#ff4444",
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  deleteAccountButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    padding: spacing.lg,
-    backgroundColor: colors.card,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.error,
-  },
-  deleteAccountText: {
-    color: colors.error,
-    fontWeight: "700",
-    fontSize: 16,
-  },
-  deleteModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.65)",
-    justifyContent: "flex-end",
-  },
-  deleteModalContent: {
-    backgroundColor: colors.card,
-    borderTopLeftRadius: radii.lg,
-    borderTopRightRadius: radii.lg,
-    padding: spacing.lg,
-    gap: spacing.md,
-  },
-  deleteModalTitle: {
-    ...typography.title,
-    color: colors.textPrimary,
-  },
-  deleteModalDescription: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  deleteInput: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    color: colors.textPrimary,
-    backgroundColor: colors.background,
-    fontSize: 15,
-  },
-  deleteReasonInput: {
-    minHeight: 72,
-    textAlignVertical: "top",
-  },
-  deleteModalActions: {
-    flexDirection: "row",
-    gap: spacing.md,
-    marginTop: spacing.sm,
-  },
-  deleteCancelButton: {
-    flex: 1,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: spacing.md,
-  },
-  deleteCancelText: {
-    color: colors.textSecondary,
-    fontWeight: "600",
-  },
-  deleteConfirmButton: {
-    flex: 1,
-    borderRadius: radii.md,
-    backgroundColor: colors.error,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: spacing.md,
-  },
-  deleteConfirmText: {
-    color: colors.card,
-    fontWeight: "700",
-  },
-  avatarContainer: {
-    position: "relative",
-  },
-  avatarOverlay: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    backgroundColor: colors.primary,
-    borderRadius: radii.sm,
-    width: 28,
-    height: 28,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: colors.card,
-  },
-});
+const createStyles = (colors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      paddingVertical: spacing.xl,
+      paddingHorizontal: spacing.lg,
+      paddingBottom: 50,
+      gap: spacing.xl,
+    },
+    header: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    headerInfo: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+    },
+    avatar: {
+      width: 72,
+      height: 72,
+      borderRadius: radii.lg,
+      borderWidth: 2,
+      borderColor: colors.highlight,
+    },
+    name: {
+      ...typography.headline,
+      color: colors.textPrimary,
+      maxWidth: 120,
+    },
+    email: {
+      color: colors.textSecondary,
+      fontSize: responsive.scale(12),
+      marginTop: spacing.xs / 2,
+    },
+    location: {
+      color: colors.textSecondary,
+    },
+    editButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+      backgroundColor: colors.accent,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: radii.pill,
+    },
+    editButtonText: {
+      color: colors.background,
+      fontWeight: "700",
+      fontSize: 14,
+    },
+    statsRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      gap: spacing.md,
+    },
+    statCard: {
+      flex: 1,
+      backgroundColor: colors.card,
+      paddingVertical: spacing.lg,
+      borderRadius: radii.lg,
+      alignItems: "center",
+      gap: spacing.xs,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    statValue: {
+      color: colors.textPrimary,
+      fontWeight: "700",
+      fontSize: 18,
+    },
+    statLabel: {
+      color: colors.textSecondary,
+      fontSize: 13,
+    },
+    sectionHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    sectionTitle: {
+      ...typography.title,
+      color: colors.textPrimary,
+    },
+    sectionAction: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+    },
+    sectionActionText: {
+      color: colors.textSecondary,
+      fontWeight: "600",
+    },
+    badgeList: {
+      gap: spacing.md,
+    },
+    badgeCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.surface,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.md,
+      gap: spacing.md,
+    },
+    badgeIcon: {
+      width: 48,
+      height: 48,
+      borderRadius: radii.md,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    badgeBody: {
+      flex: 1,
+      gap: spacing.xs,
+    },
+    badgeTitle: {
+      ...typography.body,
+      color: colors.textPrimary,
+      fontWeight: "600",
+    },
+    badgeDescription: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    paymentList: {
+      gap: spacing.sm,
+    },
+    paymentNote: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      marginBottom: spacing.xs,
+      fontStyle: "italic",
+    },
+    paymentCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      backgroundColor: colors.card,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+    },
+    paymentInfo: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+    },
+    paymentLabel: {
+      color: colors.textPrimary,
+      fontWeight: "600",
+    },
+    addPaymentButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: spacing.sm,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      paddingVertical: spacing.md,
+    },
+    addPaymentText: {
+      color: colors.primary,
+      fontWeight: "700",
+    },
+    preferenceList: {
+      gap: spacing.sm,
+    },
+    comingSoonCard: {
+      backgroundColor: colors.card,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.xl,
+      alignItems: "center",
+      gap: spacing.sm,
+    },
+    comingSoonTitle: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: colors.textPrimary,
+    },
+    comingSoonText: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: "center",
+      lineHeight: 20,
+    },
+    supportList: {
+      gap: spacing.sm,
+    },
+    supportGroupSpacing: {
+      marginBottom: spacing.md,
+    },
+    supportRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.surface,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.md,
+      gap: spacing.md,
+    },
+    supportRowDestructive: {
+      borderColor: colors.danger + "66",
+    },
+    supportIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: radii.md,
+      backgroundColor: colors.card,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    supportIconDestructive: {
+      backgroundColor: colors.danger + "1A",
+    },
+    supportBody: {
+      flex: 1,
+      gap: spacing.xs,
+    },
+    supportLabel: {
+      color: colors.textPrimary,
+      fontWeight: "600",
+    },
+    supportLabelDestructive: {
+      color: colors.danger,
+    },
+    supportDescription: {
+      color: colors.textSecondary,
+      fontSize: 13,
+    },
+    editSection: {
+      backgroundColor: colors.card,
+      borderRadius: radii.lg,
+      padding: spacing.lg,
+      gap: spacing.lg,
+    },
+    editSectionTitle: {
+      ...typography.title,
+      color: colors.textPrimary,
+      fontSize: 18,
+    },
+    inputContainer: {
+      gap: spacing.xs,
+    },
+    inputLabel: {
+      color: colors.textPrimary,
+      fontWeight: "600",
+      fontSize: 14,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.md,
+      padding: spacing.md,
+      color: colors.textPrimary,
+      backgroundColor: colors.background,
+      fontSize: 16,
+    },
+    inputDisabled: {
+      backgroundColor: colors.surface,
+      color: colors.textMuted,
+      opacity: 0.7,
+    },
+    editActions: {
+      flexDirection: "row",
+      gap: spacing.md,
+      marginTop: spacing.md,
+    },
+    editActionButton: {
+      flex: 1,
+      height: 44,
+      borderRadius: radii.md,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    cancelButton: {
+      backgroundColor: colors.border,
+    },
+    saveButton: {
+      backgroundColor: colors.primary,
+    },
+    cancelButtonText: {
+      color: colors.textSecondary,
+      fontWeight: "600",
+    },
+    saveButtonText: {
+      color: colors.card,
+      fontWeight: "600",
+    },
+    signOutButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: spacing.sm,
+      padding: spacing.lg,
+      backgroundColor: colors.card,
+      borderRadius: radii.lg,
+      marginTop: spacing.lg,
+    },
+    signOutText: {
+      color: colors.danger,
+      fontWeight: "600",
+      fontSize: 16,
+    },
+    deleteAccountButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: spacing.sm,
+      padding: spacing.lg,
+      backgroundColor: colors.card,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: colors.danger,
+    },
+    deleteAccountText: {
+      color: colors.danger,
+      fontWeight: "700",
+      fontSize: 16,
+    },
+    deleteModalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.65)",
+      justifyContent: "flex-end",
+    },
+    deleteModalContent: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: radii.lg,
+      borderTopRightRadius: radii.lg,
+      padding: spacing.lg,
+      gap: spacing.md,
+    },
+    deleteModalTitle: {
+      ...typography.title,
+      color: colors.textPrimary,
+    },
+    deleteModalDescription: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      lineHeight: 20,
+    },
+    deleteInput: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.md,
+      padding: spacing.md,
+      color: colors.textPrimary,
+      backgroundColor: colors.background,
+      fontSize: 15,
+    },
+    deleteReasonInput: {
+      minHeight: 72,
+      textAlignVertical: "top",
+    },
+    deleteModalActions: {
+      flexDirection: "row",
+      gap: spacing.md,
+      marginTop: spacing.sm,
+    },
+    deleteCancelButton: {
+      flex: 1,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: spacing.md,
+    },
+    deleteCancelText: {
+      color: colors.textSecondary,
+      fontWeight: "600",
+    },
+    deleteConfirmButton: {
+      flex: 1,
+      borderRadius: radii.md,
+      backgroundColor: colors.danger,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: spacing.md,
+    },
+    passwordUpdateButton: {
+      backgroundColor: colors.primary,
+    },
+    passwordInputWrap: {
+      position: "relative",
+      justifyContent: "center",
+    },
+    passwordToggleButton: {
+      position: "absolute",
+      right: spacing.md,
+      height: "100%",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    themeOptionRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      backgroundColor: colors.surface,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.md,
+    },
+    themeOptionLabel: {
+      color: colors.textPrimary,
+      fontWeight: "600",
+      fontSize: 15,
+    },
+    deleteConfirmText: {
+      color: colors.card,
+      fontWeight: "700",
+    },
+    avatarContainer: {
+      position: "relative",
+    },
+    avatarOverlay: {
+      position: "absolute",
+      bottom: 0,
+      right: 0,
+      backgroundColor: colors.primary,
+      borderRadius: radii.sm,
+      width: 28,
+      height: 28,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 2,
+      borderColor: colors.card,
+    },
+  });

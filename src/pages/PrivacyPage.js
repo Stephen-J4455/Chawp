@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -8,9 +8,13 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { colors, spacing, radii, typography } from "../theme";
+import { spacing, radii, typography } from "../theme";
+import { useTheme } from "../contexts/ThemeContext";
 
 export default function PrivacyPage({ onClose }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View style={styles.overlay}>
       <View style={styles.container}>
@@ -26,7 +30,8 @@ export default function PrivacyPage({ onClose }) {
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}>
+          showsVerticalScrollIndicator={false}
+        >
           {/* Privacy Policy */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Privacy Policy</Text>
@@ -223,101 +228,102 @@ export default function PrivacyPage({ onClose }) {
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    zIndex: 2000,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  container: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: colors.background,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.md,
-    backgroundColor: colors.background,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: radii.md,
-    backgroundColor: colors.card,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    ...typography.headline,
-    color: colors.textPrimary,
-    fontSize: 18,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xl,
-  },
-  section: {
-    marginBottom: spacing.xl * 2,
-  },
-  sectionTitle: {
-    ...typography.display,
-    color: colors.textPrimary,
-    fontSize: 24,
-    marginBottom: spacing.xs,
-  },
-  lastUpdated: {
-    color: colors.textMuted,
-    fontSize: 12,
-    marginBottom: spacing.lg,
-    fontStyle: "italic",
-  },
-  subheading: {
-    ...typography.headline,
-    color: colors.textPrimary,
-    fontSize: 16,
-    marginTop: spacing.lg,
-    marginBottom: spacing.sm,
-  },
-  paragraph: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 22,
-    marginBottom: spacing.md,
-  },
-  bulletPoint: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 24,
-    marginLeft: spacing.md,
-  },
-  footer: {
-    marginTop: spacing.xl,
-    padding: spacing.lg,
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  footerText: {
-    color: colors.textMuted,
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: "center",
-    fontStyle: "italic",
-  },
-});
+const createStyles = (colors) =>
+  StyleSheet.create({
+    overlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
+      zIndex: 2000,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    container: {
+      width: "100%",
+      height: "100%",
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.xl,
+      paddingBottom: spacing.md,
+      backgroundColor: colors.background,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: radii.md,
+      backgroundColor: colors.card,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    headerTitle: {
+      ...typography.headline,
+      color: colors.textPrimary,
+      fontSize: 18,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    content: {
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.xl,
+    },
+    section: {
+      marginBottom: spacing.xl * 2,
+    },
+    sectionTitle: {
+      ...typography.display,
+      color: colors.textPrimary,
+      fontSize: 24,
+      marginBottom: spacing.xs,
+    },
+    lastUpdated: {
+      color: colors.textMuted,
+      fontSize: 12,
+      marginBottom: spacing.lg,
+      fontStyle: "italic",
+    },
+    subheading: {
+      ...typography.headline,
+      color: colors.textPrimary,
+      fontSize: 16,
+      marginTop: spacing.lg,
+      marginBottom: spacing.sm,
+    },
+    paragraph: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      lineHeight: 22,
+      marginBottom: spacing.md,
+    },
+    bulletPoint: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      lineHeight: 24,
+      marginLeft: spacing.md,
+    },
+    footer: {
+      marginTop: spacing.xl,
+      padding: spacing.lg,
+      backgroundColor: colors.surface,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    footerText: {
+      color: colors.textMuted,
+      fontSize: 12,
+      lineHeight: 18,
+      textAlign: "center",
+      fontStyle: "italic",
+    },
+  });

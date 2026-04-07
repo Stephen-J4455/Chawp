@@ -1,7 +1,6 @@
 import React, { useRef } from "react";
 import { View, StyleSheet } from "react-native";
 import { Paystack } from "react-native-paystack-webview";
-import { colors } from "../theme";
 
 /**
  * In-App Paystack Payment Component

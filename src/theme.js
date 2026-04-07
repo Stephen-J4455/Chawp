@@ -1,4 +1,5 @@
-import { Dimensions } from "react-native";
+import { Appearance, Dimensions } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const isSmallDevice = SCREEN_WIDTH < 375;
@@ -11,7 +12,7 @@ const responsiveFontSize = (size) => {
   return size * 1.05;
 };
 
-export const colors = {
+const darkColors = {
   background: "#070B16",
   surface: "#0F1524",
   card: "#161D33",
@@ -27,6 +28,81 @@ export const colors = {
   textMuted: "#6C7796",
   border: "#1F2944",
   highlight: "#1F2A55",
+};
+
+const lightColors = {
+  background: "#F4F7FF",
+  surface: "#FFFFFF",
+  card: "#eeeeee",
+  overlay: "rgba(35, 47, 87, 0.12)",
+  primary: "#2458E6",
+  primaryMuted: "#1B45B5",
+  accent: "#F39C2B",
+  accentMuted: "#E98A1A",
+  success: "#1FAF6B",
+  danger: "#D74343",
+  textPrimary: "#111827",
+  textSecondary: "#4B5563",
+  textMuted: "#6B7280",
+  border: "#D6DEEF",
+  highlight: "#DCE6FF",
+};
+
+export const themes = {
+  dark: darkColors,
+  light: lightColors,
+};
+
+const currentScheme = Appearance.getColorScheme();
+
+export const colors = themes[currentScheme] || themes.dark;
+
+export const THEME_MODE_STORAGE_KEY = "chawp-theme-mode";
+export const THEME_MODES = {
+  SYSTEM: "system",
+  DARK: "dark",
+  LIGHT: "light",
+};
+
+const isValidThemeMode = (mode) =>
+  mode === THEME_MODES.SYSTEM ||
+  mode === THEME_MODES.DARK ||
+  mode === THEME_MODES.LIGHT;
+
+export const getThemeModeLabel = (mode, resolvedMode = "dark") => {
+  if (mode === THEME_MODES.SYSTEM) {
+    return `Follow system (${resolvedMode})`;
+  }
+  if (mode === THEME_MODES.LIGHT) {
+    return "Light";
+  }
+  return "Default dark";
+};
+
+export const getStoredThemeMode = async () => {
+  try {
+    const storedMode = await AsyncStorage.getItem(THEME_MODE_STORAGE_KEY);
+    return isValidThemeMode(storedMode) ? storedMode : THEME_MODES.SYSTEM;
+  } catch (error) {
+    return THEME_MODES.SYSTEM;
+  }
+};
+
+export const saveThemeMode = async (mode) => {
+  const nextMode = isValidThemeMode(mode) ? mode : THEME_MODES.SYSTEM;
+  await AsyncStorage.setItem(THEME_MODE_STORAGE_KEY, nextMode);
+  return nextMode;
+};
+
+export const applyThemeMode = (mode) => {
+  const safeMode = isValidThemeMode(mode) ? mode : THEME_MODES.SYSTEM;
+  if (typeof Appearance.setColorScheme === "function") {
+    // Only call if we have a definite value, do not pass null to avoid Android crash
+    if (safeMode === THEME_MODES.DARK || safeMode === THEME_MODES.LIGHT) {
+      Appearance.setColorScheme(safeMode);
+    }
+  }
+  return safeMode;
 };
 
 export const spacing = {

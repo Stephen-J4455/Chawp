@@ -29,6 +29,12 @@ npm install
 npm start
 ```
 
+If you're on Linux and `expo start` fails while installing React Native DevTools (Chromium `chrome-sandbox` permissions), use:
+
+```bash
+pnpm start:headless
+```
+
 ### Running the App
 
 After starting the server, you can:
@@ -61,13 +67,11 @@ Chawp/
 The app is structured to easily integrate with a backend API:
 
 1. **API Service** (`src/services/api.js`):
-
    - Contains all API endpoint functions
    - Currently returns mock data
    - Replace `BASE_URL` and uncomment actual API calls when backend is ready
 
 2. **Data Fetching Hooks** (`src/hooks/useDataFetching.js`):
-
    - `useDataFetching`: Standard data fetching with loading/error states
    - `usePaginatedData`: For paginated lists (order history, etc.)
 
@@ -79,7 +83,7 @@ import { fetchFeaturedRestaurants } from "./src/services/api";
 
 function MyComponent() {
   const { data, loading, error, refresh } = useDataFetching(
-    fetchFeaturedRestaurants
+    fetchFeaturedRestaurants,
   );
 
   if (loading) return <Text>Loading...</Text>;

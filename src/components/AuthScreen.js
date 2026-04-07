@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -8,19 +8,23 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import LoadingPlaceholder from "./LoadingPlaceholder";
 import * as WebBrowser from "expo-web-browser";
 
-import { colors, spacing, radii, typography } from "../theme";
+import { spacing, radii, typography } from "../theme";
 import { useAuth } from "../contexts/AuthContext";
 import { useNotification } from "../contexts/NotificationContext";
+import { useTheme } from "../contexts/ThemeContext";
 
 WebBrowser.maybeCompleteAuthSession();
 
 export default function AuthScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const [isLogin, setIsLogin] = useState(true);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [email, setEmail] = useState("");
@@ -229,7 +233,7 @@ export default function AuthScreen() {
 
   return (
     <LinearGradient
-      colors={[colors.background, "#050915"]}
+      colors={[colors.background, colors.surface]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.container}
@@ -371,7 +375,11 @@ export default function AuthScreen() {
                     disabled={googleLoading || loading}
                   >
                     {googleLoading ? (
-                      <ActivityIndicator color={colors.textPrimary} />
+                      <LoadingPlaceholder
+                        width={20}
+                        height={20}
+                        borderRadius={10}
+                      />
                     ) : (
                       <>
                         <Ionicons
@@ -428,129 +436,130 @@ export default function AuthScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  safeArea: {
-    flex: 1,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    justifyContent: "center",
-    paddingHorizontal: spacing.lg,
-  },
-  header: {
-    alignItems: "center",
-    marginBottom: spacing.xl,
-  },
-  title: {
-    ...typography.display,
-    color: colors.textPrimary,
-    fontSize: 48,
-    marginBottom: spacing.sm,
-  },
-  subtitle: {
-    ...typography.title,
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
-  form: {
-    marginBottom: spacing.xl,
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    marginBottom: spacing.md,
-    paddingHorizontal: spacing.md,
-    height: 50,
-  },
-  inputIcon: {
-    marginRight: spacing.sm,
-  },
-  input: {
-    flex: 1,
-    color: colors.textPrimary,
-    fontSize: 16,
-  },
-  eyeIcon: {
-    padding: spacing.xs,
-    marginLeft: spacing.xs,
-  },
-  forgotPasswordButton: {
-    alignSelf: "flex-end",
-    marginTop: -spacing.xs,
-    marginBottom: spacing.xs,
-  },
-  forgotPasswordText: {
-    color: colors.primary,
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  submitButton: {
-    backgroundColor: colors.primary,
-    borderRadius: radii.pill,
-    height: 50,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: spacing.md,
-  },
-  submitButtonDisabled: {
-    opacity: 0.6,
-  },
-  submitButtonText: {
-    color: colors.card,
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  dividerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: spacing.lg,
-  },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border || colors.surface,
-  },
-  dividerText: {
-    color: colors.textSecondary,
-    marginHorizontal: spacing.md,
-    fontSize: 14,
-  },
-  googleButton: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.pill,
-    height: 50,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.border || colors.textMuted,
-  },
-  googleIcon: {
-    marginRight: spacing.sm,
-  },
-  googleButtonText: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  toggleContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  toggleText: {
-    color: colors.textSecondary,
-  },
-  toggleLink: {
-    color: colors.primary,
-    fontWeight: "600",
-  },
-});
+const createStyles = (colors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    safeArea: {
+      flex: 1,
+    },
+    keyboardView: {
+      flex: 1,
+    },
+    content: {
+      flex: 1,
+      justifyContent: "center",
+      paddingHorizontal: spacing.lg,
+    },
+    header: {
+      alignItems: "center",
+      marginBottom: spacing.xl,
+    },
+    title: {
+      ...typography.display,
+      color: colors.textPrimary,
+      fontSize: 48,
+      marginBottom: spacing.sm,
+    },
+    subtitle: {
+      ...typography.title,
+      color: colors.textSecondary,
+      textAlign: "center",
+    },
+    form: {
+      marginBottom: spacing.xl,
+    },
+    inputContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.surface,
+      borderRadius: radii.md,
+      marginBottom: spacing.md,
+      paddingHorizontal: spacing.md,
+      height: 50,
+    },
+    inputIcon: {
+      marginRight: spacing.sm,
+    },
+    input: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: 16,
+    },
+    eyeIcon: {
+      padding: spacing.xs,
+      marginLeft: spacing.xs,
+    },
+    forgotPasswordButton: {
+      alignSelf: "flex-end",
+      marginTop: -spacing.xs,
+      marginBottom: spacing.xs,
+    },
+    forgotPasswordText: {
+      color: colors.primary,
+      fontSize: 14,
+      fontWeight: "500",
+    },
+    submitButton: {
+      backgroundColor: colors.primary,
+      borderRadius: radii.pill,
+      height: 50,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: spacing.md,
+    },
+    submitButtonDisabled: {
+      opacity: 0.6,
+    },
+    submitButtonText: {
+      color: colors.card,
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    dividerContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginVertical: spacing.lg,
+    },
+    divider: {
+      flex: 1,
+      height: 1,
+      backgroundColor: colors.border || colors.surface,
+    },
+    dividerText: {
+      color: colors.textSecondary,
+      marginHorizontal: spacing.md,
+      fontSize: 14,
+    },
+    googleButton: {
+      backgroundColor: colors.surface,
+      borderRadius: radii.pill,
+      height: 50,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: colors.border || colors.textMuted,
+    },
+    googleIcon: {
+      marginRight: spacing.sm,
+    },
+    googleButtonText: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    toggleContainer: {
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    toggleText: {
+      color: colors.textSecondary,
+    },
+    toggleLink: {
+      color: colors.primary,
+      fontWeight: "600",
+    },
+  });

@@ -8,13 +8,15 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { colors, spacing, radii, typography } from "../theme";
+import { spacing, radii, typography } from "../theme";
 import RatingStars from "./RatingStars";
 import { fetchComments, submitComment } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useNotification } from "../contexts/NotificationContext";
+import { useTheme } from "../contexts/ThemeContext";
 
 export default function CommentsSection({ targetType, targetId }) {
+  const { colors } = useTheme();
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState("");
@@ -58,7 +60,7 @@ export default function CommentsSection({ targetType, targetId }) {
         targetType,
         targetId,
         newComment.trim(),
-        newRating > 0 ? newRating : null
+        newRating > 0 ? newRating : null,
       );
 
       setNewComment("");
@@ -80,20 +82,23 @@ export default function CommentsSection({ targetType, targetId }) {
         borderRadius: radii.md,
         padding: spacing.md,
         marginBottom: spacing.sm,
-      }}>
+      }}
+    >
       <View
         style={{
           flexDirection: "row",
           justifyContent: "space-between",
           alignItems: "center",
           marginBottom: spacing.xs,
-        }}>
+        }}
+      >
         <Text
           style={{
             ...typography.title,
             color: colors.textPrimary,
             fontWeight: "600",
-          }}>
+          }}
+        >
           {item.user?.full_name || item.user?.username || "Anonymous"}
         </Text>
         <Text
@@ -101,7 +106,8 @@ export default function CommentsSection({ targetType, targetId }) {
             ...typography.body,
             color: colors.textSecondary,
             fontSize: 12,
-          }}>
+          }}
+        >
           {new Date(item.created_at).toLocaleDateString()}
         </Text>
       </View>
@@ -120,7 +126,8 @@ export default function CommentsSection({ targetType, targetId }) {
           ...typography.body,
           color: colors.textPrimary,
           lineHeight: 20,
-        }}>
+        }}
+      >
         {item.comment}
       </Text>
     </View>
@@ -136,14 +143,16 @@ export default function CommentsSection({ targetType, targetId }) {
             borderRadius: radii.md,
             padding: spacing.md,
             marginBottom: spacing.lg,
-          }}>
+          }}
+        >
           <Text
             style={{
               ...typography.title,
               color: colors.textPrimary,
               marginBottom: spacing.sm,
               fontWeight: "600",
-            }}>
+            }}
+          >
             Add a Review
           </Text>
 
@@ -154,7 +163,8 @@ export default function CommentsSection({ targetType, targetId }) {
                 ...typography.body,
                 color: colors.textSecondary,
                 marginBottom: spacing.xs,
-              }}>
+              }}
+            >
               Rating (optional)
             </Text>
             <RatingStars
@@ -195,13 +205,15 @@ export default function CommentsSection({ targetType, targetId }) {
               opacity: submitting ? 0.6 : 1,
             }}
             onPress={handleSubmitComment}
-            disabled={submitting}>
+            disabled={submitting}
+          >
             <Text
               style={{
                 ...typography.body,
                 color: colors.card,
                 fontWeight: "600",
-              }}>
+              }}
+            >
               {submitting ? "Submitting..." : "Submit Review"}
             </Text>
           </TouchableOpacity>
@@ -217,7 +229,8 @@ export default function CommentsSection({ targetType, targetId }) {
             padding: spacing.md,
             marginBottom: spacing.lg,
             alignItems: "center",
-          }}>
+          }}
+        >
           <Ionicons
             name="person-outline"
             size={48}
@@ -231,7 +244,8 @@ export default function CommentsSection({ targetType, targetId }) {
               marginBottom: spacing.xs,
               fontWeight: "600",
               textAlign: "center",
-            }}>
+            }}
+          >
             Sign in to leave a review
           </Text>
           <Text
@@ -239,7 +253,8 @@ export default function CommentsSection({ targetType, targetId }) {
               ...typography.body,
               color: colors.textSecondary,
               textAlign: "center",
-            }}>
+            }}
+          >
             Join the community and share your thoughts about this place!
           </Text>
         </View>
@@ -252,7 +267,8 @@ export default function CommentsSection({ targetType, targetId }) {
             ...typography.headline,
             color: colors.textPrimary,
             marginBottom: spacing.md,
-          }}>
+          }}
+        >
           Reviews ({comments.length})
         </Text>
 
@@ -263,7 +279,8 @@ export default function CommentsSection({ targetType, targetId }) {
               color: colors.textSecondary,
               textAlign: "center",
               padding: spacing.lg,
-            }}>
+            }}
+          >
             Loading reviews...
           </Text>
         ) : comments.length === 0 ? (
@@ -273,7 +290,8 @@ export default function CommentsSection({ targetType, targetId }) {
               color: colors.textSecondary,
               textAlign: "center",
               padding: spacing.lg,
-            }}>
+            }}
+          >
             No reviews yet. Be the first to leave one!
           </Text>
         ) : (

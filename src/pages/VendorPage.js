@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Image,
   ScrollView,
   StyleSheet,
@@ -11,7 +10,8 @@ import {
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
-import { colors, spacing, radii, typography, responsive } from "../theme";
+import { spacing, radii, typography, responsive } from "../theme";
+import { useTheme } from "../contexts/ThemeContext";
 import { fetchMeals } from "../services/api";
 import {
   checkVendorStatus,
@@ -20,6 +20,7 @@ import {
 } from "../services/api";
 import RatingStars from "../components/RatingStars";
 import CommentsSection from "../components/CommentsSection";
+import LoadingPlaceholder from "../components/LoadingPlaceholder";
 
 export default function VendorPage({
   vendor,
@@ -30,6 +31,8 @@ export default function VendorPage({
   updateCartQuantity,
   addingToCart = null,
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [meals, setMeals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [vendorStatus, setVendorStatus] = useState({
@@ -38,6 +41,7 @@ export default function VendorPage({
   });
   const [ratingInfo, setRatingInfo] = useState({ average: 0, count: 0 });
   const [vendorHours, setVendorHours] = useState([]);
+  const [hoursLoading, setHoursLoading] = useState(true);
 
   useEffect(() => {
     loadMeals();
@@ -61,6 +65,7 @@ export default function VendorPage({
 
   const loadVendorData = async () => {
     try {
+      setHoursLoading(true);
       // Load vendor status
       const status = await checkVendorStatus(vendor.id);
       setVendorStatus(status);
@@ -74,8 +79,38 @@ export default function VendorPage({
       setVendorHours(hours);
     } catch (error) {
       console.error("Error loading vendor data:", error);
+    } finally {
+      setHoursLoading(false);
     }
   };
+
+  const renderHourSkeleton = (index) => (
+    <View key={`hour-skeleton-${index}`} style={styles.hourItem}>
+      <LoadingPlaceholder width="38%" height={16} borderRadius={6} />
+      <LoadingPlaceholder width="34%" height={16} borderRadius={6} />
+    </View>
+  );
+
+  const renderMenuSkeletonCard = (index) => (
+    <View key={`menu-skeleton-${index}`} style={styles.mealCard}>
+      <View style={styles.mealImageSkeleton}>
+        <LoadingPlaceholder
+          width="100%"
+          height="100%"
+          borderRadius={radii.lg}
+        />
+      </View>
+      <View style={styles.mealInfo}>
+        <LoadingPlaceholder width="56%" height={16} borderRadius={6} />
+        <LoadingPlaceholder width="88%" height={12} borderRadius={6} />
+        <LoadingPlaceholder width="76%" height={12} borderRadius={6} />
+        <View style={styles.mealFooter}>
+          <LoadingPlaceholder width={70} height={18} borderRadius={6} />
+          <LoadingPlaceholder width={32} height={32} borderRadius={radii.sm} />
+        </View>
+      </View>
+    </View>
+  );
 
   const handleMealPress = (meal) => {
     if (onMealSelect) {
@@ -84,10 +119,13 @@ export default function VendorPage({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Fixed Header */}
       <View style={styles.fixedHeader}>
-        <TouchableOpacity style={styles.backButton} onPress={onClose}>
+        <TouchableOpacity
+          style={[styles.backButton, { backgroundColor: colors.overlay }]}
+          onPress={onClose}
+        >
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>
@@ -181,41 +219,50 @@ export default function VendorPage({
         </View>
 
         {/* Operating Hours Section */}
-        {vendorHours.length > 0 && (
+        {(hoursLoading || vendorHours.length > 0) && (
           <View style={styles.hoursSection}>
             <Text style={styles.sectionTitle}>Operating Hours</Text>
             <View style={styles.hoursList}>
-              {vendorHours.map((hour) => {
-                const dayNames = [
-                  "Sunday",
-                  "Monday",
-                  "Tuesday",
-                  "Wednesday",
-                  "Thursday",
-                  "Friday",
-                  "Saturday",
-                ];
-                const isToday = hour.day_of_week === new Date().getDay();
-                const isClosed = hour.is_closed;
+              {hoursLoading
+                ? Array.from({ length: 7 }).map((_, index) =>
+                    renderHourSkeleton(index),
+                  )
+                : vendorHours.map((hour) => {
+                    const dayNames = [
+                      "Sunday",
+                      "Monday",
+                      "Tuesday",
+                      "Wednesday",
+                      "Thursday",
+                      "Friday",
+                      "Saturday",
+                    ];
+                    const isToday = hour.day_of_week === new Date().getDay();
+                    const isClosed = hour.is_closed;
 
-                return (
-                  <View
-                    key={hour.day_of_week}
-                    style={[styles.hourItem, isToday && styles.todayItem]}
-                  >
-                    <Text style={[styles.dayText, isToday && styles.todayText]}>
-                      {dayNames[hour.day_of_week]}
-                    </Text>
-                    <Text
-                      style={[styles.timeText, isClosed && styles.closedText]}
-                    >
-                      {isClosed
-                        ? "Closed"
-                        : `${hour.open_time} - ${hour.close_time}`}
-                    </Text>
-                  </View>
-                );
-              })}
+                    return (
+                      <View
+                        key={hour.day_of_week}
+                        style={[styles.hourItem, isToday && styles.todayItem]}
+                      >
+                        <Text
+                          style={[styles.dayText, isToday && styles.todayText]}
+                        >
+                          {dayNames[hour.day_of_week]}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.timeText,
+                            isClosed && styles.closedText,
+                          ]}
+                        >
+                          {isClosed
+                            ? "Closed"
+                            : `${hour.open_time} - ${hour.close_time}`}
+                        </Text>
+                      </View>
+                    );
+                  })}
             </View>
           </View>
         )}
@@ -224,8 +271,10 @@ export default function VendorPage({
         <View style={styles.menuSection}>
           <Text style={styles.sectionTitle}>Menu</Text>
           {loading ? (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Loading menu...</Text>
+            <View style={styles.mealsGrid}>
+              {Array.from({ length: 4 }).map((_, index) =>
+                renderMenuSkeletonCard(index),
+              )}
             </View>
           ) : meals.length === 0 ? (
             <View style={styles.emptyContainer}>
@@ -299,9 +348,10 @@ export default function VendorPage({
                             }
                           >
                             {addingToCart === meal.id ? (
-                              <ActivityIndicator
-                                size="small"
-                                color={colors.card}
+                              <LoadingPlaceholder
+                                width={16}
+                                height={16}
+                                borderRadius={8}
                               />
                             ) : (
                               <Ionicons
@@ -332,284 +382,294 @@ export default function VendorPage({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: colors.background,
-    zIndex: 4000,
-  },
-  fixedHeader: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: spacing.xl + 20,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: radii.md,
-    backgroundColor: colors.overlay,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  shareButton: {
-    width: 40,
-    height: 40,
-    borderRadius: radii.md,
-    backgroundColor: colors.overlay,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    paddingBottom: 120,
-  },
-  heroContainer: {
-    height: 300,
-    position: "relative",
-    marginTop: 0,
-  },
-  heroImage: {
-    width: "100%",
-    height: "100%",
-  },
-  heroGradient: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 100,
-    justifyContent: "flex-end",
-  },
-  heroContent: {
-    padding: spacing.lg,
-  },
-  categoryBadge: {
-    backgroundColor: colors.overlay,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: radii.pill,
-    alignSelf: "flex-start",
-  },
-  categoryText: {
-    color: colors.textPrimary,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  vendorInfo: {
-    padding: spacing.lg,
-    gap: spacing.md,
-  },
-  vendorHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  vendorName: {
-    ...typography.headline,
-    color: colors.textPrimary,
-    flex: 1,
-  },
-  statusBadge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radii.sm,
-  },
-  statusText: {
-    color: colors.card,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  closedMessage: {
-    ...typography.body,
-    color: colors.danger,
-    fontSize: 14,
-  },
-  vendorMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  vendorRating: {
-    color: colors.textPrimary,
-    fontWeight: "600",
-  },
-  vendorMetaText: {
-    color: colors.textSecondary,
-  },
-  dot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.textMuted,
-  },
-  vendorDescription: {
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  tagRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  tagPill: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  tagText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  hoursSection: {
-    padding: spacing.lg,
-    paddingTop: 0,
-  },
-  hoursList: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  hourItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: spacing.xs,
-  },
-  todayItem: {
-    backgroundColor: colors.overlay,
-    borderRadius: radii.sm,
-    paddingHorizontal: spacing.sm,
-    marginHorizontal: -spacing.sm,
-  },
-  dayText: {
-    ...typography.body,
-    color: colors.textPrimary,
-    fontWeight: "500",
-  },
-  todayText: {
-    color: colors.primary,
-    fontWeight: "600",
-  },
-  timeText: {
-    ...typography.body,
-    color: colors.textSecondary,
-  },
-  closedText: {
-    color: colors.danger,
-    fontStyle: "italic",
-  },
-  menuSection: {
-    padding: spacing.lg,
-    gap: spacing.md,
-  },
-  sectionTitle: {
-    ...typography.title,
-    color: colors.textPrimary,
-  },
-  loadingContainer: {
-    alignItems: "center",
-    paddingVertical: spacing.xl,
-  },
-  loadingText: {
-    color: colors.textSecondary,
-    fontSize: 16,
-  },
-  emptyContainer: {
-    alignItems: "center",
-    paddingVertical: spacing.xl * 2,
-    gap: spacing.md,
-  },
-  emptyText: {
-    color: colors.textMuted,
-    fontSize: 16,
-  },
-  mealsGrid: {
-    gap: spacing.md,
-  },
-  mealCard: {
-    flexDirection: "row",
-    backgroundColor: colors.card,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: "hidden",
-  },
-  mealImage: {
-    width: responsive.isSmallDevice ? 80 : 100,
-    height: responsive.isSmallDevice ? 80 : 100,
-  },
-  mealInfo: {
-    flex: 1,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  mealTitle: {
-    ...typography.body,
-    color: colors.textPrimary,
-    fontWeight: "600",
-  },
-  mealDescription: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  mealFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  mealPrice: {
-    ...typography.title,
-    color: colors.textPrimary,
-    fontSize: 16,
-  },
-  addButton: {
-    width: 32,
-    height: 32,
-    borderRadius: radii.sm,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  quantityControls: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  quantityButton: {
-    width: 24,
-    height: 24,
-    borderRadius: radii.sm,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  quantityText: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: "600",
-    minWidth: 20,
-    textAlign: "center",
-  },
-  reviewsSection: {
-    padding: spacing.lg,
-    paddingTop: 0,
-  },
-});
+const createStyles = (colors) => {
+  const staticColors = colors;
+  return StyleSheet.create({
+    container: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: staticColors.background,
+      zIndex: 4000,
+    },
+    fixedHeader: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 10,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingTop: spacing.xl + 20,
+      paddingHorizontal: spacing.lg,
+      paddingBottom: spacing.md,
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: radii.md,
+      backgroundColor: staticColors.overlay,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    shareButton: {
+      width: 40,
+      height: 40,
+      borderRadius: radii.md,
+      backgroundColor: staticColors.overlay,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    scrollView: {
+      flex: 1,
+    },
+    content: {
+      paddingBottom: 120,
+    },
+    heroContainer: {
+      height: 300,
+      position: "relative",
+      marginTop: 0,
+    },
+    heroImage: {
+      width: "100%",
+      height: "100%",
+    },
+    heroGradient: {
+      position: "absolute",
+      bottom: 0,
+      left: 0,
+      right: 0,
+      height: 100,
+      justifyContent: "flex-end",
+    },
+    heroContent: {
+      padding: spacing.lg,
+    },
+    categoryBadge: {
+      backgroundColor: staticColors.overlay,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+      borderRadius: radii.pill,
+      alignSelf: "flex-start",
+    },
+    categoryText: {
+      color: staticColors.textPrimary,
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    vendorInfo: {
+      padding: spacing.lg,
+      gap: spacing.md,
+    },
+    vendorHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    vendorName: {
+      ...typography.headline,
+      color: staticColors.textPrimary,
+      flex: 1,
+    },
+    statusBadge: {
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+      borderRadius: radii.sm,
+    },
+    statusText: {
+      color: staticColors.card,
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    closedMessage: {
+      ...typography.body,
+      color: staticColors.danger,
+      fontSize: 14,
+    },
+    vendorMeta: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+    },
+    vendorRating: {
+      color: staticColors.textPrimary,
+      fontWeight: "600",
+    },
+    vendorMetaText: {
+      color: staticColors.textSecondary,
+    },
+    dot: {
+      width: 4,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: staticColors.textMuted,
+    },
+    vendorDescription: {
+      color: staticColors.textSecondary,
+      lineHeight: 20,
+    },
+    tagRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: spacing.sm,
+    },
+    tagPill: {
+      backgroundColor: staticColors.surface,
+      borderRadius: radii.pill,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    tagText: {
+      color: staticColors.textSecondary,
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    hoursSection: {
+      padding: spacing.lg,
+      paddingTop: 0,
+    },
+    hoursList: {
+      backgroundColor: staticColors.surface,
+      borderRadius: radii.md,
+      padding: spacing.md,
+      gap: spacing.sm,
+    },
+    hourItem: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: spacing.xs,
+    },
+    todayItem: {
+      backgroundColor: staticColors.overlay,
+      borderRadius: radii.sm,
+      paddingHorizontal: spacing.sm,
+      marginHorizontal: -spacing.sm,
+    },
+    dayText: {
+      ...typography.body,
+      color: staticColors.textPrimary,
+      fontWeight: "500",
+    },
+    todayText: {
+      color: staticColors.primary,
+      fontWeight: "600",
+    },
+    timeText: {
+      ...typography.body,
+      color: staticColors.textSecondary,
+    },
+    closedText: {
+      color: staticColors.danger,
+      fontStyle: "italic",
+    },
+    menuSection: {
+      padding: spacing.lg,
+      gap: spacing.md,
+    },
+    sectionTitle: {
+      ...typography.title,
+      color: staticColors.textPrimary,
+    },
+    loadingContainer: {
+      alignItems: "center",
+      paddingVertical: spacing.xl,
+    },
+    loadingText: {
+      color: staticColors.textSecondary,
+      fontSize: 16,
+    },
+    emptyContainer: {
+      alignItems: "center",
+      paddingVertical: spacing.xl * 2,
+      gap: spacing.md,
+    },
+    emptyText: {
+      color: staticColors.textMuted,
+      fontSize: 16,
+    },
+    mealsGrid: {
+      gap: spacing.md,
+    },
+    mealCard: {
+      flexDirection: "row",
+      backgroundColor: staticColors.card,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: staticColors.border,
+      overflow: "hidden",
+    },
+    mealImage: {
+      width: responsive.isSmallDevice ? 80 : 100,
+      height: responsive.isSmallDevice ? 80 : 100,
+    },
+    mealImageSkeleton: {
+      width: responsive.isSmallDevice ? 80 : 100,
+      height: responsive.isSmallDevice ? 80 : 100,
+      borderTopLeftRadius: radii.lg,
+      borderBottomLeftRadius: radii.lg,
+      overflow: "hidden",
+    },
+    mealInfo: {
+      flex: 1,
+      padding: spacing.md,
+      gap: spacing.sm,
+    },
+    mealTitle: {
+      ...typography.body,
+      color: staticColors.textPrimary,
+      fontWeight: "600",
+    },
+    mealDescription: {
+      color: staticColors.textSecondary,
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    mealFooter: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    mealPrice: {
+      ...typography.title,
+      color: staticColors.textPrimary,
+      fontSize: 16,
+    },
+    addButton: {
+      width: 32,
+      height: 32,
+      borderRadius: radii.sm,
+      backgroundColor: staticColors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    quantityControls: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+    },
+    quantityButton: {
+      width: 24,
+      height: 24,
+      borderRadius: radii.sm,
+      backgroundColor: staticColors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    quantityText: {
+      color: staticColors.textPrimary,
+      fontSize: 14,
+      fontWeight: "600",
+      minWidth: 20,
+      textAlign: "center",
+    },
+    reviewsSection: {
+      padding: spacing.lg,
+      paddingTop: 0,
+    },
+  });
+};

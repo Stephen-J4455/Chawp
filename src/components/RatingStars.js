@@ -2,7 +2,8 @@ import React from "react";
 import { View, TouchableOpacity, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { colors, spacing, typography } from "../theme";
+import { spacing, typography } from "../theme";
+import { useTheme } from "../contexts/ThemeContext";
 
 export default function RatingStars({
   rating,
@@ -12,6 +13,8 @@ export default function RatingStars({
   showValue = true,
   count,
 }) {
+  const { colors } = useTheme();
+
   const renderStars = () => {
     const stars = [];
     const fullStars = Math.floor(rating);
@@ -34,9 +37,10 @@ export default function RatingStars({
           <TouchableOpacity
             key={i}
             onPress={() => onRatingChange && onRatingChange(i)}
-            style={{ marginRight: 2 }}>
+            style={{ marginRight: 2 }}
+          >
             <Ionicons name={starName} size={size} color={starColor} />
-          </TouchableOpacity>
+          </TouchableOpacity>,
         );
       } else {
         stars.push(
@@ -46,7 +50,7 @@ export default function RatingStars({
             size={size}
             color={starColor}
             style={{ marginRight: 2 }}
-          />
+          />,
         );
       }
     }
@@ -64,7 +68,8 @@ export default function RatingStars({
             color: colors.textPrimary,
             marginLeft: spacing.xs,
             fontSize: size - 2,
-          }}>
+          }}
+        >
           {rating.toFixed(1)}
           {count !== undefined && (
             <Text style={{ color: colors.textSecondary }}> ({count})</Text>

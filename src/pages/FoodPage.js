@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Image,
   Modal,
@@ -13,10 +12,12 @@ import {
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
-import { colors, spacing, radii, typography, responsive } from "../theme";
+import { spacing, radii, typography, responsive } from "../theme";
+import { useTheme } from "../contexts/ThemeContext";
 import { getAverageRating } from "../services/api";
 import RatingStars from "../components/RatingStars";
 import CommentsSection from "../components/CommentsSection";
+import LoadingPlaceholder from "../components/LoadingPlaceholder";
 
 const NO_SIZE_OPTION_KEY = "none";
 
@@ -143,6 +144,8 @@ export default function FoodPage({
   updateCartQuantity,
   isAddingToCart = false,
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [ratingInfo, setRatingInfo] = useState({ average: 0, count: 0 });
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [fullscreenVisible, setFullscreenVisible] = useState(false);
@@ -673,7 +676,7 @@ export default function FoodPage({
         >
           {isAddingToCart ? (
             <>
-              <ActivityIndicator size="small" color={colors.card} />
+              <LoadingPlaceholder width={16} height={16} borderRadius={8} />
               <Text style={[styles.addButtonText, { marginLeft: spacing.xs }]}>
                 Adding...
               </Text>
@@ -828,7 +831,7 @@ export default function FoodPage({
                 disabled={isAddingToCart || isVendorClosed}
               >
                 {isAddingToCart ? (
-                  <ActivityIndicator size="small" color={colors.card} />
+                  <LoadingPlaceholder width={16} height={16} borderRadius={8} />
                 ) : (
                   <Text style={styles.customizationAddButtonText}>
                     Add
@@ -902,496 +905,499 @@ export default function FoodPage({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: colors.background,
-    zIndex: 5000,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    paddingBottom: 120, // Space for bottom bar
-  },
-  fixedHeader: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: spacing.xl + 20,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: radii.md,
-    backgroundColor: colors.overlay,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  shareButton: {
-    width: 40,
-    height: 40,
-    borderRadius: radii.md,
-    backgroundColor: colors.overlay,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  heroContainer: {
-    height: responsive.isSmallDevice
-      ? 280
-      : responsive.isMediumDevice
-        ? 320
-        : 350,
-    position: "relative",
-    marginTop: 0,
-  },
-  heroImage: {
-    width: responsive.width,
-    height: "100%",
-  },
-  imageDots: {
-    position: "absolute",
-    bottom: spacing.md,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: spacing.xs,
-    zIndex: 3,
-  },
-  imageDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "rgba(255, 255, 255, 0.4)",
-  },
-  imageDotActive: {
-    width: 18,
-    borderRadius: 6,
-    backgroundColor: colors.card,
-  },
-  closedOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 1,
-  },
-  closedBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.error,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: radii.lg,
-  },
-  closedText: {
-    color: colors.card,
-    fontSize: 16,
-    fontWeight: "700",
-    textTransform: "uppercase",
-  },
-  heroGradient: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 100,
-    justifyContent: "flex-end",
-  },
-  heroContent: {
-    padding: spacing.lg,
-  },
-  categoryBadge: {
-    backgroundColor: colors.overlay,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: radii.pill,
-    alignSelf: "flex-start",
-  },
-  categoryText: {
-    color: colors.textPrimary,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  mainContent: {
-    padding: spacing.lg,
-    gap: spacing.xl,
-  },
-  titleSection: {
-    gap: spacing.sm,
-  },
-  title: {
-    ...typography.headline,
-    color: colors.textPrimary,
-  },
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  metaText: {
-    color: colors.textSecondary,
-    fontSize: 14,
-  },
-  dot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.textMuted,
-    marginHorizontal: spacing.xs,
-  },
-  vendorSection: {
-    gap: spacing.md,
-  },
-  sectionTitle: {
-    ...typography.title,
-    color: colors.textPrimary,
-  },
-  vendorCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
-    gap: spacing.md,
-  },
-  vendorImage: {
-    width: 50,
-    height: 50,
-    borderRadius: radii.md,
-  },
-  vendorInfo: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  vendorName: {
-    ...typography.body,
-    color: colors.textPrimary,
-    fontWeight: "600",
-  },
-  vendorMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  vendorRating: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  vendorMetaText: {
-    color: colors.textSecondary,
-    fontSize: 14,
-  },
-  vendorButton: {
-    width: 36,
-    height: 36,
-    borderRadius: radii.sm,
-    backgroundColor: colors.card,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  descriptionSection: {
-    gap: spacing.md,
-  },
-  description: {
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  optionChipWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  optionChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  optionChipActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary + "22",
-  },
-  optionChipText: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  optionChipTextActive: {
-    color: colors.primary,
-  },
-  optionHintText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  specificationsList: {
-    gap: spacing.sm,
-  },
-  specificationItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  specificationItemActive: {
-    borderColor: colors.success,
-    backgroundColor: colors.success + "1A",
-  },
-  specificationText: {
-    color: colors.textSecondary,
-    flex: 1,
-    lineHeight: 20,
-  },
-  specificationTextActive: {
-    color: colors.textPrimary,
-    fontWeight: "600",
-  },
-  ingredientsSection: {
-    gap: spacing.md,
-  },
-  ingredientsList: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  ingredientTag: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  ingredientText: {
-    color: colors.textSecondary,
-    fontSize: 14,
-  },
-  nutritionSection: {
-    gap: spacing.md,
-  },
-  nutritionGrid: {
-    flexDirection: "row",
-    gap: spacing.md,
-  },
-  nutritionItem: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  nutritionValue: {
-    ...typography.title,
-    color: colors.textPrimary,
-    fontSize: 16,
-  },
-  nutritionLabel: {
-    color: colors.textSecondary,
-    fontSize: 12,
-  },
-  bottomBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.card,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    padding: spacing.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  priceSection: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  price: {
-    ...typography.headline,
-    color: colors.textPrimary,
-    fontSize: 24,
-  },
-  priceMetaText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    marginTop: spacing.xs,
-  },
-  quantityControls: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  quantityButton: {
-    width: 28,
-    height: 28,
-    borderRadius: radii.sm,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  quantityText: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: "600",
-    minWidth: 24,
-    textAlign: "center",
-  },
-  addButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: radii.pill,
-  },
-  updateButton: {
-    backgroundColor: colors.success,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    minWidth: 44,
-    width: 44,
-    height: 44,
-    borderRadius: radii.full,
-  },
-  addButtonText: {
-    color: colors.card,
-    fontWeight: "700",
-    fontSize: 16,
-  },
-  reviewsSection: {
-    padding: spacing.lg,
-    paddingTop: 0,
-  },
-  customizationOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "flex-end",
-  },
-  customizationCard: {
-    backgroundColor: colors.card,
-    borderTopLeftRadius: radii.lg,
-    borderTopRightRadius: radii.lg,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xl,
-    maxHeight: "80%",
-  },
-  customizationHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: spacing.md,
-  },
-  customizationTitle: {
-    ...typography.title,
-    color: colors.textPrimary,
-  },
-  customizationBody: {
-    maxHeight: 360,
-  },
-  customizationSectionTitle: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: "700",
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  customizationActions: {
-    flexDirection: "row",
-    gap: spacing.md,
-    marginTop: spacing.lg,
-  },
-  customizationActionButton: {
-    flex: 1,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  customizationCancelButton: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  customizationCancelText: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  customizationAddButton: {
-    backgroundColor: colors.primary,
-  },
-  customizationAddButtonText: {
-    color: colors.card,
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  fullscreenOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.95)",
-    justifyContent: "center",
-  },
-  fullscreenClose: {
-    position: "absolute",
-    top: spacing.xl + 20,
-    right: spacing.lg,
-    zIndex: 10,
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  fullscreenImagePage: {
-    width: responsive.width,
-    height: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  fullscreenImage: {
-    width: "100%",
-    height: "78%",
-  },
-  fullscreenDots: {
-    position: "absolute",
-    bottom: spacing.xl,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-});
+const createStyles = (colors) => {
+  const staticColors = colors;
+  return StyleSheet.create({
+    container: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: staticColors.background,
+      zIndex: 5000,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    content: {
+      paddingBottom: 120, // Space for bottom bar
+    },
+    fixedHeader: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 10,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingTop: spacing.xl + 20,
+      paddingHorizontal: spacing.lg,
+      paddingBottom: spacing.md,
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: radii.md,
+      backgroundColor: staticColors.overlay,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    shareButton: {
+      width: 40,
+      height: 40,
+      borderRadius: radii.md,
+      backgroundColor: staticColors.overlay,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    heroContainer: {
+      height: responsive.isSmallDevice
+        ? 280
+        : responsive.isMediumDevice
+          ? 320
+          : 350,
+      position: "relative",
+      marginTop: 0,
+    },
+    heroImage: {
+      width: responsive.width,
+      height: "100%",
+    },
+    imageDots: {
+      position: "absolute",
+      bottom: spacing.md,
+      left: 0,
+      right: 0,
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      gap: spacing.xs,
+      zIndex: 3,
+    },
+    imageDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: "rgba(255, 255, 255, 0.4)",
+    },
+    imageDotActive: {
+      width: 18,
+      borderRadius: 6,
+      backgroundColor: staticColors.card,
+    },
+    closedOverlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0, 0, 0, 0.6)",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 1,
+    },
+    closedBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      backgroundColor: staticColors.error,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      borderRadius: radii.lg,
+    },
+    closedText: {
+      color: staticColors.card,
+      fontSize: 16,
+      fontWeight: "700",
+      textTransform: "uppercase",
+    },
+    heroGradient: {
+      position: "absolute",
+      bottom: 0,
+      left: 0,
+      right: 0,
+      height: 100,
+      justifyContent: "flex-end",
+    },
+    heroContent: {
+      padding: spacing.lg,
+    },
+    categoryBadge: {
+      backgroundColor: staticColors.overlay,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+      borderRadius: radii.pill,
+      alignSelf: "flex-start",
+    },
+    categoryText: {
+      color: staticColors.textPrimary,
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    mainContent: {
+      padding: spacing.lg,
+      gap: spacing.xl,
+    },
+    titleSection: {
+      gap: spacing.sm,
+    },
+    title: {
+      ...typography.headline,
+      color: staticColors.textPrimary,
+    },
+    metaRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+    },
+    metaText: {
+      color: staticColors.textSecondary,
+      fontSize: 14,
+    },
+    dot: {
+      width: 4,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: staticColors.textMuted,
+      marginHorizontal: spacing.xs,
+    },
+    vendorSection: {
+      gap: spacing.md,
+    },
+    sectionTitle: {
+      ...typography.title,
+      color: staticColors.textPrimary,
+    },
+    vendorCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: staticColors.surface,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: staticColors.border,
+      padding: spacing.md,
+      gap: spacing.md,
+    },
+    vendorImage: {
+      width: 50,
+      height: 50,
+      borderRadius: radii.md,
+    },
+    vendorInfo: {
+      flex: 1,
+      gap: spacing.xs,
+    },
+    vendorName: {
+      ...typography.body,
+      color: staticColors.textPrimary,
+      fontWeight: "600",
+    },
+    vendorMeta: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+    },
+    vendorRating: {
+      color: staticColors.textPrimary,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    vendorMetaText: {
+      color: staticColors.textSecondary,
+      fontSize: 14,
+    },
+    vendorButton: {
+      width: 36,
+      height: 36,
+      borderRadius: radii.sm,
+      backgroundColor: staticColors.card,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    descriptionSection: {
+      gap: spacing.md,
+    },
+    description: {
+      color: staticColors.textSecondary,
+      lineHeight: 20,
+    },
+    optionChipWrap: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: spacing.sm,
+    },
+    optionChip: {
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: radii.pill,
+      borderWidth: 1,
+      borderColor: staticColors.border,
+      backgroundColor: staticColors.surface,
+    },
+    optionChipActive: {
+      borderColor: staticColors.primary,
+      backgroundColor: staticColors.primary + "22",
+    },
+    optionChipText: {
+      color: staticColors.textSecondary,
+      fontSize: 13,
+      fontWeight: "600",
+    },
+    optionChipTextActive: {
+      color: staticColors.primary,
+    },
+    optionHintText: {
+      color: staticColors.textSecondary,
+      fontSize: 12,
+      lineHeight: 18,
+    },
+    specificationsList: {
+      gap: spacing.sm,
+    },
+    specificationItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      borderWidth: 1,
+      borderColor: staticColors.border,
+      borderRadius: radii.md,
+      backgroundColor: staticColors.surface,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    specificationItemActive: {
+      borderColor: staticColors.success,
+      backgroundColor: staticColors.success + "1A",
+    },
+    specificationText: {
+      color: staticColors.textSecondary,
+      flex: 1,
+      lineHeight: 20,
+    },
+    specificationTextActive: {
+      color: staticColors.textPrimary,
+      fontWeight: "600",
+    },
+    ingredientsSection: {
+      gap: spacing.md,
+    },
+    ingredientsList: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: spacing.sm,
+    },
+    ingredientTag: {
+      backgroundColor: staticColors.surface,
+      borderRadius: radii.pill,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    ingredientText: {
+      color: staticColors.textSecondary,
+      fontSize: 14,
+    },
+    nutritionSection: {
+      gap: spacing.md,
+    },
+    nutritionGrid: {
+      flexDirection: "row",
+      gap: spacing.md,
+    },
+    nutritionItem: {
+      flex: 1,
+      backgroundColor: staticColors.surface,
+      borderRadius: radii.md,
+      padding: spacing.md,
+      alignItems: "center",
+      gap: spacing.xs,
+    },
+    nutritionValue: {
+      ...typography.title,
+      color: staticColors.textPrimary,
+      fontSize: 16,
+    },
+    nutritionLabel: {
+      color: staticColors.textSecondary,
+      fontSize: 12,
+    },
+    bottomBar: {
+      position: "absolute",
+      bottom: 0,
+      left: 0,
+      right: 0,
+      backgroundColor: staticColors.card,
+      borderTopWidth: 1,
+      borderTopColor: staticColors.border,
+      padding: spacing.lg,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+    },
+    priceSection: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    price: {
+      ...typography.headline,
+      color: staticColors.textPrimary,
+      fontSize: 24,
+    },
+    priceMetaText: {
+      color: staticColors.textSecondary,
+      fontSize: 12,
+      marginTop: spacing.xs,
+    },
+    quantityControls: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+    },
+    quantityButton: {
+      width: 28,
+      height: 28,
+      borderRadius: radii.sm,
+      backgroundColor: staticColors.primary,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    quantityText: {
+      color: staticColors.textPrimary,
+      fontSize: 16,
+      fontWeight: "600",
+      minWidth: 24,
+      textAlign: "center",
+    },
+    addButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      backgroundColor: staticColors.primary,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      borderRadius: radii.pill,
+    },
+    updateButton: {
+      backgroundColor: staticColors.success,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.md,
+      minWidth: 44,
+      width: 44,
+      height: 44,
+      borderRadius: radii.full,
+    },
+    addButtonText: {
+      color: staticColors.card,
+      fontWeight: "700",
+      fontSize: 16,
+    },
+    reviewsSection: {
+      padding: spacing.lg,
+      paddingTop: 0,
+    },
+    customizationOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.6)",
+      justifyContent: "flex-end",
+    },
+    customizationCard: {
+      backgroundColor: staticColors.card,
+      borderTopLeftRadius: radii.lg,
+      borderTopRightRadius: radii.lg,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.lg,
+      paddingBottom: spacing.xl,
+      maxHeight: "80%",
+    },
+    customizationHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: spacing.md,
+    },
+    customizationTitle: {
+      ...typography.title,
+      color: staticColors.textPrimary,
+    },
+    customizationBody: {
+      maxHeight: 360,
+    },
+    customizationSectionTitle: {
+      color: staticColors.textPrimary,
+      fontSize: 14,
+      fontWeight: "700",
+      marginTop: spacing.sm,
+      marginBottom: spacing.sm,
+    },
+    customizationActions: {
+      flexDirection: "row",
+      gap: spacing.md,
+      marginTop: spacing.lg,
+    },
+    customizationActionButton: {
+      flex: 1,
+      borderRadius: radii.md,
+      paddingVertical: spacing.md,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    customizationCancelButton: {
+      backgroundColor: staticColors.card,
+      borderWidth: 1,
+      borderColor: staticColors.border,
+    },
+    customizationCancelText: {
+      color: staticColors.textPrimary,
+      fontSize: 15,
+      fontWeight: "600",
+    },
+    customizationAddButton: {
+      backgroundColor: staticColors.primary,
+    },
+    customizationAddButtonText: {
+      color: staticColors.card,
+      fontSize: 15,
+      fontWeight: "700",
+    },
+    fullscreenOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0, 0, 0, 0.95)",
+      justifyContent: "center",
+    },
+    fullscreenClose: {
+      position: "absolute",
+      top: spacing.xl + 20,
+      right: spacing.lg,
+      zIndex: 10,
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      backgroundColor: "rgba(255,255,255,0.2)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    fullscreenImagePage: {
+      width: responsive.width,
+      height: "100%",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    fullscreenImage: {
+      width: "100%",
+      height: "78%",
+    },
+    fullscreenDots: {
+      position: "absolute",
+      bottom: spacing.xl,
+      left: 0,
+      right: 0,
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      gap: spacing.xs,
+    },
+  });
+};
