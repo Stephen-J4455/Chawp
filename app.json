@@ -60,9 +60,7 @@
       "favicon": "./assets/chawp.png"
     },
     "extra": {
-      "eas": {
-        "projectId": "b13177a5-3d74-41a9-b0d4-b0783b8daea2"
-      }
+      "eas": {}
     }
   }
 }
