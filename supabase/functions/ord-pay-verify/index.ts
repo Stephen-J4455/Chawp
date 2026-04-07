@@ -231,22 +231,70 @@ serve(async (req) => {
       throw new Error(updateOrdersError.message || "Failed to update orders");
     }
 
-    // Vendor payout ledger entries.
-    for (const [vendorId, amount] of Object.entries(vendorTotals)) {
-      const { error: vendorPayoutError } = await writeClient
-        .from("chawp_vendor_payouts")
-        .insert({
-          vendor_id: vendorId,
-          amount: roundCurrency(amount),
-          status: "completed",
-          payment_method: "paystack_split",
-          reference_number: reference,
-          notes: `Auto-settled from pay-after-delivery payment ${reference}`,
-          completed_at: new Date().toISOString(),
-        });
+    // Vendor payout ledger handling:
+    // Keep payouts pending so admin can explicitly mark settlement as completed.
+    for (const order of orders as any[]) {
+      const vendorId = String(order?.vendor_id || "").trim();
+      const orderId = String(order?.id || "").trim();
+      const payoutAmount = roundCurrency(Number(order?.total_amount || 0));
 
-      if (vendorPayoutError) {
-        console.error("Failed to create vendor payout:", vendorPayoutError);
+      if (!vendorId || !orderId) continue;
+
+      const { data: pendingPayout, error: pendingPayoutLookupError } =
+        await writeClient
+          .from("chawp_vendor_payouts")
+          .select("id, status")
+          .eq("vendor_id", vendorId)
+          .eq("status", "pending")
+          .is("reference_number", null)
+          .ilike("notes", `%${orderId}%`)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+      if (pendingPayoutLookupError) {
+        console.error(
+          "Failed to lookup pending vendor payout:",
+          pendingPayoutLookupError,
+        );
+        continue;
+      }
+
+      if (pendingPayout?.id) {
+        const { error: payoutUpdateError } = await writeClient
+          .from("chawp_vendor_payouts")
+          .update({
+            payment_method: "paystack_split",
+            reference_number: reference,
+            notes: `Customer payment received (${reference}) for order ${orderId}. Awaiting admin payout settlement.`,
+          })
+          .eq("id", pendingPayout.id);
+
+        if (payoutUpdateError) {
+          console.error(
+            "Failed to update pending vendor payout:",
+            payoutUpdateError,
+          );
+        }
+      } else {
+        // Backfill when pending payout record was not created at order placement.
+        const { error: payoutCreateError } = await writeClient
+          .from("chawp_vendor_payouts")
+          .insert({
+            vendor_id: vendorId,
+            amount: payoutAmount,
+            status: "pending",
+            payment_method: "paystack_split",
+            reference_number: reference,
+            notes: `Customer payment received (${reference}) for order ${orderId}. Awaiting admin payout settlement.`,
+          });
+
+        if (payoutCreateError) {
+          console.error(
+            "Failed to backfill pending vendor payout:",
+            payoutCreateError,
+          );
+        }
       }
     }
 

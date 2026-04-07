@@ -254,19 +254,108 @@ const allocateFeeAcrossGroups = (
   return shares;
 };
 
+const getPaystackKeyMode = (secretKey: string | undefined): string => {
+  const key = String(secretKey || "")
+    .trim()
+    .toLowerCase();
+  if (key.startsWith("sk_test_")) return "test";
+  if (key.startsWith("sk_live_")) return "live";
+  return "unknown";
+};
+
+const getSubaccountVerificationStatus = (sub: any): string => {
+  if (!sub || typeof sub !== "object") return "unknown";
+
+  const status = String(
+    sub.verification_status ||
+      sub.account_verification_status ||
+      sub.subaccount_status ||
+      "",
+  )
+    .trim()
+    .toLowerCase();
+
+  if (status) return status;
+
+  if (typeof sub.is_verified === "boolean") {
+    return sub.is_verified ? "verified" : "unverified";
+  }
+
+  if (typeof sub.verified === "boolean") {
+    return sub.verified ? "verified" : "unverified";
+  }
+
+  return "unknown";
+};
+
+const isSubaccountVerified = (sub: any): boolean => {
+  if (!sub || typeof sub !== "object") return false;
+  if (sub.is_verified === true || sub.verified === true) return true;
+
+  const verificationStatus = getSubaccountVerificationStatus(sub);
+  return ["verified", "approved", "success"].includes(verificationStatus);
+};
+
+const isSubaccountMissingResponse = (
+  statusCode: number,
+  payload: Record<string, any> | null,
+): boolean => {
+  const message = String(payload?.message || payload?.error || "")
+    .trim()
+    .toLowerCase();
+
+  if (statusCode === 404) return true;
+
+  return (
+    message.includes("not found") ||
+    message.includes("does not exist") ||
+    message.includes("invalid subaccount")
+  );
+};
+
+const pickDeliveryAssignee = (
+  candidates: any[],
+  activeOrderCounts: Record<string, number>,
+) => {
+  if (!Array.isArray(candidates) || candidates.length === 0) return null;
+
+  const ranked = [...candidates].sort((a, b) => {
+    const loadA = Number(activeOrderCounts[a.id] || 0);
+    const loadB = Number(activeOrderCounts[b.id] || 0);
+    if (loadA !== loadB) return loadA - loadB;
+
+    const ratingA = Number(a.rating || 0);
+    const ratingB = Number(b.rating || 0);
+    if (ratingA !== ratingB) return ratingB - ratingA;
+
+    return (
+      Number(b.completed_deliveries || 0) - Number(a.completed_deliveries || 0)
+    );
+  });
+
+  return ranked[0] || null;
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
+    const paystackSecretKey = Deno.env.get("PAYSTACK_SECRET_KEY");
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
+    if (!paystackSecretKey) {
+      throw new Error("Paystack secret key not configured");
+    }
+
     if (!supabaseUrl || !supabaseAnonKey) {
       throw new Error("Supabase environment is not configured correctly");
     }
+
+    const paystackKeyMode = getPaystackKeyMode(paystackSecretKey);
 
     const authHeader = req.headers.get("Authorization") ?? "";
 
@@ -348,6 +437,157 @@ serve(async (req) => {
       throw new Error("Cart is empty");
     }
 
+    const { data: deliveryCandidatesData, error: deliveryCandidatesError } =
+      await writeClient
+        .from("chawp_delivery_personnel")
+        .select(
+          "id, rating, completed_deliveries, is_available, is_verified, is_active, deleted_at, payment_account, account_verified",
+        )
+        .eq("is_available", true)
+        .eq("is_verified", true)
+        .is("deleted_at", null)
+        .or("is_active.is.null,is_active.eq.true");
+
+    if (deliveryCandidatesError) {
+      throw new Error(
+        deliveryCandidatesError.message ||
+          "Failed to fetch available delivery personnel",
+      );
+    }
+
+    const deliveryCandidates = (deliveryCandidatesData || []).filter(
+      (candidate: any) => String(candidate?.payment_account || "").trim(),
+    );
+
+    if (deliveryCandidates.length === 0) {
+      throw new Error(
+        "No available delivery personnel with verified payout accounts",
+      );
+    }
+
+    const deliveryCandidateIds = deliveryCandidates.map((candidate: any) =>
+      String(candidate.id || "").trim(),
+    );
+
+    const { data: deliveryBankDetailsData, error: deliveryBankDetailsError } =
+      await writeClient
+        .from("chawp_delivery_bank_details")
+        .select("delivery_personnel_id, is_verified")
+        .in("delivery_personnel_id", deliveryCandidateIds);
+
+    if (deliveryBankDetailsError) {
+      throw new Error(
+        deliveryBankDetailsError.message ||
+          "Failed to evaluate delivery payout verification",
+      );
+    }
+
+    const bankVerifiedByDeliveryId = new Map<string, boolean>();
+    for (const row of deliveryBankDetailsData || []) {
+      const deliveryId = String(row?.delivery_personnel_id || "").trim();
+      if (!deliveryId) continue;
+      bankVerifiedByDeliveryId.set(deliveryId, Boolean(row?.is_verified));
+    }
+
+    const eligibleDeliveryCandidates: any[] = [];
+
+    for (const candidate of deliveryCandidates as any[]) {
+      const deliveryId = String(candidate?.id || "").trim();
+      const subaccountCode = String(candidate?.payment_account || "").trim();
+      if (!deliveryId || !subaccountCode) continue;
+
+      const localApproved =
+        Boolean(candidate?.account_verified) ||
+        Boolean(bankVerifiedByDeliveryId.get(deliveryId));
+
+      const detailsRes = await fetch(
+        `https://api.paystack.co/subaccount/${encodeURIComponent(subaccountCode)}`,
+        { headers: { Authorization: `Bearer ${paystackSecretKey}` } },
+      );
+
+      const detailsJson = await detailsRes.json();
+
+      if (!detailsRes.ok || detailsJson.status !== true) {
+        if (isSubaccountMissingResponse(detailsRes.status, detailsJson)) {
+          continue;
+        }
+        throw new Error(
+          detailsJson?.message || "Failed to verify delivery subaccount",
+        );
+      }
+
+      const subaccount = detailsJson?.data || {};
+      const paystackVerified = isSubaccountVerified(subaccount);
+
+      const payoutApproved =
+        paystackKeyMode === "test"
+          ? localApproved || paystackVerified
+          : localApproved && paystackVerified;
+
+      if (!payoutApproved) {
+        continue;
+      }
+
+      const canonicalSubaccountCode = String(
+        subaccount?.subaccount_code || subaccountCode,
+      ).trim();
+
+      eligibleDeliveryCandidates.push({
+        ...candidate,
+        payment_account: canonicalSubaccountCode || subaccountCode,
+      });
+
+      if (paystackVerified && !Boolean(candidate?.account_verified)) {
+        await writeClient
+          .from("chawp_delivery_personnel")
+          .update({ account_verified: true })
+          .eq("id", deliveryId);
+      }
+    }
+
+    if (eligibleDeliveryCandidates.length === 0) {
+      throw new Error(
+        "No available delivery personnel with verified payout accounts",
+      );
+    }
+
+    const { data: activeDeliveryOrders, error: activeDeliveryOrdersError } =
+      await writeClient
+        .from("chawp_orders")
+        .select("delivery_personnel_id")
+        .in("status", [
+          "pending",
+          "confirmed",
+          "preparing",
+          "ready",
+          "out_for_delivery",
+        ])
+        .not("delivery_personnel_id", "is", null);
+
+    if (activeDeliveryOrdersError) {
+      throw new Error(
+        activeDeliveryOrdersError.message ||
+          "Failed to evaluate delivery assignment load",
+      );
+    }
+
+    const activeOrderCounts: Record<string, number> = {};
+    for (const order of activeDeliveryOrders || []) {
+      const deliveryId = String(order?.delivery_personnel_id || "").trim();
+      if (!deliveryId) continue;
+      activeOrderCounts[deliveryId] =
+        Number(activeOrderCounts[deliveryId] || 0) + 1;
+    }
+
+    const assignedDelivery = pickDeliveryAssignee(
+      eligibleDeliveryCandidates,
+      activeOrderCounts,
+    );
+
+    if (!assignedDelivery) {
+      throw new Error("Unable to assign delivery personnel for this order");
+    }
+
     const vendorGroups: Record<
       string,
       {
@@ -425,7 +665,7 @@ serve(async (req) => {
     const deliveryFeeByVendor = allocateFeeAcrossGroups(deliveryFee, groups);
 
     const assignedDeliveryPersonnelId =
-      String(orderData?.deliveryPersonnelId || "").trim() || null;
+      String(assignedDelivery?.id || "").trim() || null;
 
     const createdOrders: any[] = [];
 
@@ -448,7 +688,7 @@ serve(async (req) => {
           orderData?.deliveryAddress || userProfile.address || "UPSA Campus",
         delivery_instructions: orderData?.deliveryInstructions || "",
         payment_method: "pay_after_delivery",
-        payment_status: "unpaid",
+        payment_status: "pending",
         status: "pending",
       };
 
@@ -515,17 +755,81 @@ serve(async (req) => {
         throw new Error(itemsError.message || "Failed to create order items");
       }
 
+      // Create vendor payout ledger entry immediately (pending) for admin settlement workflow.
+      const { error: payoutCreateError } = await writeClient
+        .from("chawp_vendor_payouts")
+        .insert({
+          vendor_id: group.vendorId,
+          amount: roundCurrency(groupSubtotal),
+          status: "pending",
+          payment_method: "pay_after_delivery",
+          reference_number: null,
+          notes: `Pay-after-delivery order ${order.id} awaiting customer payment`,
+        });
+
+      if (payoutCreateError) {
+        throw new Error(
+          payoutCreateError.message || "Failed to create pending vendor payout",
+        );
+      }
+
       createdOrders.push(order);
 
       // Notify vendor about new order.
       try {
-        const { data: vendor } = await userClient
+        const { data: vendor, error: vendorError } = await writeClient
           .from("chawp_vendors")
-          .select("name, chawp_user_profiles(push_token, username)")
+          .select("name, user_id")
           .eq("id", group.vendorId)
           .single();
 
-        if (vendor?.chawp_user_profiles?.push_token) {
+        if (vendorError) {
+          throw new Error(
+            vendorError.message || "Failed to fetch vendor for notification",
+          );
+        }
+
+        const vendorUserId = String(vendor?.user_id || "").trim();
+        const { data: vendorProfile, error: vendorProfileError } = vendorUserId
+          ? await writeClient
+              .from("chawp_user_profiles")
+              .select("push_token")
+              .eq("id", vendorUserId)
+              .maybeSingle()
+          : { data: null as any, error: null as any };
+
+        if (vendorProfileError) {
+          throw new Error(
+            vendorProfileError.message ||
+              "Failed to fetch vendor push profile token",
+          );
+        }
+
+        const { data: vendorDeviceTokens, error: vendorDeviceTokensError } =
+          vendorUserId
+            ? await writeClient
+                .from("chawp_device_tokens")
+                .select("push_token")
+                .eq("user_id", vendorUserId)
+                .in("device_type", ["vendor", "vendor_app"])
+            : { data: [] as any[], error: null as any };
+
+        if (vendorDeviceTokensError) {
+          throw new Error(
+            vendorDeviceTokensError.message ||
+              "Failed to fetch vendor device tokens",
+          );
+        }
+
+        const vendorTokens = [
+          vendorProfile?.push_token,
+          ...((vendorDeviceTokens || []).map((row: any) => row.push_token) ||
+            []),
+        ].filter(Boolean);
+
+        const uniqueVendorTokens = [...new Set(vendorTokens)];
+
+        if (uniqueVendorTokens.length > 0) {
           const customerName =
             userProfile.username || userProfile.full_name || "Customer";
           const itemsCount = group.items.length;
@@ -533,7 +837,7 @@ serve(async (req) => {
 
           await userClient.functions.invoke("send-push-notification", {
             body: {
-              tokens: [vendor.chawp_user_profiles.push_token],
+              tokens: uniqueVendorTokens,
               title: "🔔 New Order Received",
               body: `New pay-after-delivery order from ${customerName} with ${itemsCount} ${itemsText}. Total: GH₵${groupSubtotal.toFixed(2)}`,
               data: {
@@ -544,14 +848,17 @@ serve(async (req) => {
             },
           });
         }
-      } catch (_notifError) {
-        // Ignore notification errors.
+      } catch (notifError) {
+        console.error(
+          `Failed to send vendor notification for order ${order?.id} and vendor ${group.vendorId}:`,
+          notifError,
+        );
       }
     }
 
     // Notify admins about new order(s).
     try {
-      const { data: admins } = await userClient
+      const { data: admins } = await writeClient
         .from("chawp_user_profiles")
         .select("id, push_token, role")
         .in("role", ["admin", "super_admin"]);
@@ -559,7 +866,7 @@ serve(async (req) => {
       if (admins && admins.length > 0) {
         const adminIds = admins.map((admin) => admin.id);
 
-        const { data: deviceTokens } = await userClient
+        const { data: deviceTokens } = await writeClient
           .from("chawp_device_tokens")
           .select("push_token")
           .in("user_id", adminIds)
@@ -595,6 +902,51 @@ serve(async (req) => {
       }
     } catch (_notifError) {
       // Ignore admin notification errors.
+    }
+
+    // Notify assigned delivery personnel about new assignment.
+    if (assignedDeliveryPersonnelId && createdOrders.length > 0) {
+      try {
+        const { data: deliveryPerson } = await writeClient
+          .from("chawp_delivery_personnel")
+          .select("user_id")
+          .eq("id", assignedDeliveryPersonnelId)
+          .maybeSingle();
+
+        const deliveryUserId = String(deliveryPerson?.user_id || "").trim();
+        if (deliveryUserId) {
+          const { data: deliveryTokens } = await writeClient
+            .from("chawp_device_tokens")
+            .select("push_token")
+            .eq("user_id", deliveryUserId)
+            .eq("device_type", "delivery");
+
+          const uniqueTokens = [
+            ...new Set(
+              (deliveryTokens || [])
+                .map((row: any) => row.push_token)
+                .filter(Boolean),
+            ),
+          ];
+
+          if (uniqueTokens.length > 0) {
+            await userClient.functions.invoke("send-push-notification", {
+              body: {
+                tokens: uniqueTokens,
+                title: "🚚 New Delivery Assignment",
+                body: `You've been assigned ${createdOrders.length} new order${createdOrders.length > 1 ? "s" : ""}.`,
+                data: {
+                  orderId: createdOrders[0]?.id,
+                  type: "delivery_assigned",
+                  channelId: "orders",
+                },
+              },
+            });
+          }
+        }
+      } catch (_deliveryNotifError) {
+        // Ignore delivery notification errors.
+      }
     }
 
     const { error: clearCartError } = await writeClient
