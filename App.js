@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import Constants from "expo-constants";
 
 import { spacing, radii, typography, responsive } from "./src/theme";
 import DiscoveryPage from "./src/pages/DiscoveryPage";
@@ -245,6 +246,32 @@ const normalizePriceAdjustments = (
   });
   return normalized;
 };
+
+const parseVersionPart = (value) => {
+  const parsed = Number.parseInt(String(value || "").replace(/\D/g, ""), 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const compareVersions = (a = "0.0.0", b = "0.0.0") => {
+  const aParts = String(a).split(".");
+  const bParts = String(b).split(".");
+  const maxLength = Math.max(aParts.length, bParts.length, 3);
+
+  for (let i = 0; i < maxLength; i += 1) {
+    const diff = parseVersionPart(aParts[i]) - parseVersionPart(bParts[i]);
+    if (diff > 0) return 1;
+    if (diff < 0) return -1;
+  }
+
+  return 0;
+};
+
+const getCurrentAppVersion = () =>
+  String(
+    Constants.expoConfig?.version ||
+      Constants.manifest2?.extra?.expoClient?.version ||
+      "0.0.0",
+  );
 
 const getMealPricingDetails = (
   meal = {},
@@ -4525,10 +4552,163 @@ const AppWithAuth = () => (
   <AuthProvider>
     <ThemeProvider>
       <NotificationProvider>
-        <App />
+        <VersionGate>
+          <App />
+        </VersionGate>
       </NotificationProvider>
     </ThemeProvider>
   </AuthProvider>
 );
+
+function VersionGate({ children }) {
+  const [checking, setChecking] = React.useState(true);
+  const [requiredVersion, setRequiredVersion] = React.useState(null);
+  const [storeUrl, setStoreUrl] = React.useState("");
+  const [releaseNote, setReleaseNote] = React.useState("");
+  const currentVersion = React.useMemo(() => getCurrentAppVersion(), []);
+
+  React.useEffect(() => {
+    let mounted = true;
+
+    const checkVersion = async () => {
+      try {
+        const settings = await fetchAppSettings();
+        const minVersion =
+          Platform.OS === "ios"
+            ? settings?.versionControl?.chawp?.iosMinVersion
+            : settings?.versionControl?.chawp?.androidMinVersion;
+        const configuredStoreUrl =
+          Platform.OS === "ios"
+            ? settings?.versionControl?.chawp?.iosStoreUrl
+            : settings?.versionControl?.chawp?.androidStoreUrl;
+        const configuredReleaseNote =
+          settings?.versionControl?.chawp?.releaseNote || "";
+
+        if (
+          mounted &&
+          minVersion &&
+          compareVersions(currentVersion, minVersion) < 0
+        ) {
+          setRequiredVersion(minVersion);
+          setStoreUrl(String(configuredStoreUrl || "").trim());
+          setReleaseNote(String(configuredReleaseNote || "").trim());
+        }
+      } catch (error) {
+        console.warn("Version gate check skipped:", error?.message || error);
+      } finally {
+        if (mounted) {
+          setChecking(false);
+        }
+      }
+    };
+
+    checkVersion();
+
+    return () => {
+      mounted = false;
+    };
+  }, [currentVersion]);
+
+  const handleOpenStore = React.useCallback(async () => {
+    try {
+      if (storeUrl) {
+        await Linking.openURL(storeUrl);
+        return;
+      }
+
+      if (Platform.OS === "android") {
+        const packageName = Constants.expoConfig?.android?.package;
+        if (!packageName) return;
+
+        const marketUrl = `market://details?id=${packageName}`;
+        const webUrl = `https://play.google.com/store/apps/details?id=${packageName}`;
+
+        const canOpenMarket = await Linking.canOpenURL(marketUrl);
+        await Linking.openURL(canOpenMarket ? marketUrl : webUrl);
+        return;
+      }
+
+      await Linking.openURL("itms-apps://apps.apple.com");
+    } catch (error) {
+      console.warn("Unable to open store:", error?.message || error);
+    }
+  }, [storeUrl]);
+
+  if (checking) {
+    return <ChawpLoading />;
+  }
+
+  if (!requiredVersion) {
+    return children;
+  }
+
+  return (
+    <SafeAreaView style={versionGateStyles.container}>
+      <Text style={versionGateStyles.title}>Update Required</Text>
+      <Text style={versionGateStyles.message}>
+        A newer version of Chawp is required to continue.
+      </Text>
+      <Text style={versionGateStyles.meta}>
+        Current: {currentVersion} | Required: {requiredVersion}
+      </Text>
+      {!!releaseNote && (
+        <Text style={versionGateStyles.releaseNote}>{releaseNote}</Text>
+      )}
+      <TouchableOpacity
+        style={versionGateStyles.button}
+        onPress={handleOpenStore}
+      >
+        <Text style={versionGateStyles.buttonText}>Open Store</Text>
+      </TouchableOpacity>
+    </SafeAreaView>
+  );
+}
+
+const versionGateStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#000000",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.xl,
+    gap: spacing.md,
+  },
+  title: {
+    color: "#2EA7FF",
+    fontSize: 28,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  message: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  meta: {
+    color: "#9AA3B2",
+    fontSize: 13,
+    textAlign: "center",
+  },
+  releaseNote: {
+    color: "#D8DEE8",
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  button: {
+    marginTop: spacing.sm,
+    backgroundColor: "#2EA7FF",
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+  },
+  buttonText: {
+    color: "#000000",
+    fontWeight: "700",
+    fontSize: 15,
+  },
+});
 
 export default AppWithAuth;
