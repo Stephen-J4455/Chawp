@@ -45,12 +45,6 @@
         }
       ]
     },
-    "notification": {
-      "icon": "./assets/chawp.png",
-      "color": "#FF6B6B",
-      "androidMode": "default",
-      "androidCollapsedTitle": "{{unread_count}} new notifications"
-    },
     "scheme": "chawp",
     "plugins": [
       [
