@@ -7,12 +7,17 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:949827223720:android:f8632f1c82463d4046c29d",
+        "mobilesdk_app_id": "1:949827223720:android:98044663a2eb86fc46c29d",
         "android_client_info": {
-          "package_name": "com.stephen_j.Chawp"
+          "package_name": "com.stephenj.chawp"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "949827223720-s1ku8bbo3qt7anft2i1nhp5ulsp2vktb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCQBReoNVa9On7KH5JMWBuAATObiupAc0c"
@@ -20,7 +25,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "949827223720-s1ku8bbo3qt7anft2i1nhp5ulsp2vktb.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

@@ -1,7 +1,7 @@
 import { supabase } from "../config/supabase";
 
 // Paystack configuration
-const PAYSTACK_PUBLIC_KEY = "pk_test_7d6bef2c11764ac43547031baf2c197607286987";
+const PAYSTACK_PUBLIC_KEY = "pk_live_014478be275a6453efab7529d14bd938c8b9b964";
 const SUPABASE_FUNCTIONS_BASE_URL =
   "https://qxxflbymaoledpluzqtb.supabase.co/functions/v1";
 

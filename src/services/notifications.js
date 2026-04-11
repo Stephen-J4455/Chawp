@@ -87,18 +87,20 @@ export async function registerForPushNotifications() {
     }
 
     try {
-      // Get device push token (FCM for Android, APNs for iOS)
-      token = (await Notifications.getDevicePushTokenAsync()).data;
-      console.log("Push Token:", token);
+      const projectId =
+        Constants.expoConfig?.extra?.eas?.projectId ||
+        Constants.easConfig?.projectId ||
+        "25e34247-92bf-4bc2-9638-a4c7207fa6b2";
+
+      // Expo push tokens are cross-platform and work with Expo's push service.
+      token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+      console.log("Expo Push Token:", token);
     } catch (error) {
-      console.error("Error getting push token:", error);
-      // Fallback to Expo push token for development
+      console.error("Error getting Expo push token:", error);
       try {
-        const projectId =
-          Constants.expoConfig?.extra?.eas?.projectId ||
-          "25e34247-92bf-4bc2-9638-a4c7207fa6b2";
-        token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-        console.log("Expo Push Token (fallback):", token);
+        // Fallback to native token (FCM on Android / APNs on iOS).
+        token = (await Notifications.getDevicePushTokenAsync()).data;
+        console.log("Native Push Token (fallback):", token);
       } catch (e) {
         console.error("Fallback token error:", e);
       }
