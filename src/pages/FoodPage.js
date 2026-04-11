@@ -593,31 +593,6 @@ export default function FoodPage({
             </View>
           )}
 
-          <View style={styles.nutritionSection}>
-            <Text style={styles.sectionTitle}>Nutrition Facts</Text>
-            <View style={styles.nutritionGrid}>
-              <View style={styles.nutritionItem}>
-                <Text style={styles.nutritionValue}>
-                  {meal.calories ? meal.calories.split(" ")[0] : "250"}
-                </Text>
-                <Text style={styles.nutritionLabel}>Calories</Text>
-              </View>
-              <View style={styles.nutritionItem}>
-                <Text style={styles.nutritionValue}>
-                  {meal.protein || "12g"}
-                </Text>
-                <Text style={styles.nutritionLabel}>Protein</Text>
-              </View>
-              <View style={styles.nutritionItem}>
-                <Text style={styles.nutritionValue}>{meal.carbs || "45g"}</Text>
-                <Text style={styles.nutritionLabel}>Carbs</Text>
-              </View>
-              <View style={styles.nutritionItem}>
-                <Text style={styles.nutritionValue}>{meal.fat || "8g"}</Text>
-                <Text style={styles.nutritionLabel}>Fat</Text>
-              </View>
-            </View>
-          </View>
         </View>
 
         {/* Reviews Section */}
@@ -1063,26 +1038,25 @@ const createStyles = (colors) => {
       backgroundColor: staticColors.textMuted,
       marginHorizontal: spacing.xs,
     },
-    vendorSection: {
-      gap: spacing.md,
-    },
     sectionTitle: {
       ...typography.title,
       color: staticColors.textPrimary,
+      fontSize: 18,
+    },
+    vendorSection: {
+      gap: spacing.md,
     },
     vendorCard: {
       flexDirection: "row",
       alignItems: "center",
       backgroundColor: staticColors.surface,
       borderRadius: radii.lg,
-      borderWidth: 1,
-      borderColor: staticColors.border,
       padding: spacing.md,
       gap: spacing.md,
     },
     vendorImage: {
-      width: 50,
-      height: 50,
+      width: 56,
+      height: 56,
       borderRadius: radii.md,
     },
     vendorInfo: {
